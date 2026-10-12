@@ -31,7 +31,7 @@ import {
   type NewAction,
 } from "./store";
 import {
-  TOOL_SPECS,
+  getToolSpecs,
   executeTool,
   outcomeToResultContent,
   prepareTool,
@@ -50,6 +50,8 @@ export type AgentMode = { type: "message"; text: string } | { type: "continue" }
 
 type RunOptions = {
   sb: ServerSupabase;
+  /** E-Mail des angemeldeten Nutzers (für Postfach-/Kalender-Berechtigung) */
+  userEmail?: string | null;
   conversationId?: string;
   mode: AgentMode;
   emit: (event: ChatEvent) => void;
@@ -66,9 +68,9 @@ class UserFacingError extends Error {}
  * Führt eine Chat-Anfrage aus: Nutzernachricht speichern, KI-Antwort streamen,
  * lesende Tools direkt ausführen, schreibende Tools zur Bestätigung vormerken.
  */
-export async function runAgent({ sb, conversationId, mode, emit, signal }: RunOptions): Promise<void> {
+export async function runAgent({ sb, userEmail, conversationId, mode, emit, signal }: RunOptions): Promise<void> {
   try {
-    await runAgentInner({ sb, conversationId, mode, emit, signal });
+    await runAgentInner({ sb, userEmail, conversationId, mode, emit, signal });
   } catch (error) {
     if (error instanceof ProviderError || error instanceof DataError || error instanceof UserFacingError) {
       emit({ type: "error", message: error.message });
@@ -83,7 +85,8 @@ export async function runAgent({ sb, conversationId, mode, emit, signal }: RunOp
   }
 }
 
-async function runAgentInner({ sb, conversationId, mode, emit, signal }: RunOptions): Promise<void> {
+async function runAgentInner({ sb, userEmail, conversationId, mode, emit, signal }: RunOptions): Promise<void> {
+  const toolCtx = { userEmail: userEmail ?? null };
   // Provider zuerst prüfen, damit bei fehlender Konfiguration nichts gespeichert wird.
   const provider = getChatProvider();
 
@@ -159,7 +162,7 @@ async function runAgentInner({ sb, conversationId, mode, emit, signal }: RunOpti
     const turn = await provider.streamTurn({
       system: SYSTEM_PROMPT,
       messages: toChatMessages(window.messages),
-      tools: TOOL_SPECS,
+      tools: getToolSpecs(),
       toolChoice: lastRound ? "none" : "auto",
       onTextDelta: (delta) => emit({ type: "text", delta }),
       signal,
@@ -224,7 +227,7 @@ async function runAgentInner({ sb, conversationId, mode, emit, signal }: RunOpti
         continue;
       }
       if (validated.tool.kind === "read") {
-        const outcome = await executeTool(sb, call.name, validated.input);
+        const outcome = await executeTool(sb, call.name, validated.input, toolCtx);
         newActions.push({
           ...base,
           input: validated.input,
@@ -238,7 +241,7 @@ async function runAgentInner({ sb, conversationId, mode, emit, signal }: RunOpti
         continue;
       }
       // Schreibende Aktion: nur vormerken, Ausführung erst nach Bestätigung.
-      const prepared = await prepareTool(sb, validated.tool, validated.input);
+      const prepared = await prepareTool(sb, validated.tool, validated.input, toolCtx);
       if (!prepared.ok) {
         newActions.push({
           ...base,

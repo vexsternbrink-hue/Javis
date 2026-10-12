@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       };
       await runAgent({
         sb: auth.supabase,
+        userEmail: auth.user.email ?? null,
         conversationId: body.conversationId,
         mode: "continue" in body ? { type: "continue" } : { type: "message", text: body.message },
         emit,

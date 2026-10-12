@@ -128,6 +128,41 @@ Gut zu wissen:
 
 ---
 
+## GMX & Apple-Kalender
+
+Jarvis kann (optional) dein **GMX-Postfach lesen** und deinen **Apple-/iCloud-Kalender** anzeigen sowie neue Termine anlegen.
+
+**Was Jarvis damit darf – und was nicht:**
+
+| | Erlaubt | Nicht möglich |
+|---|---|---|
+| **GMX** | Posteingang auflisten, durchsuchen, einzelne Mails lesen | Senden, Antworten, Löschen, Verschieben, als gelesen markieren |
+| **Kalender** | Termine ansehen, neue Termine anlegen (im Chat **nur nach Bestätigung**) | Termine ändern oder löschen |
+
+- Postfach und Kalender sieht **nur die erste Adresse** aus `ALLOWED_EMAILS`.
+- Auf den Seiten *Posteingang* und *Kalender* werden die Daten direkt von GMX/iCloud geladen. **Nur wenn du Jarvis im Chat danach fragst**, gehen Inhalte an den KI-Anbieter. ⚠️ Im kostenlosen Gemini-Tarif darf Google diese Inhalte zur Verbesserung nutzen – also auch E-Mails, die dir andere geschrieben haben. Frag Jarvis deshalb nicht nach sehr privaten Mails.
+- E-Mails sind fremde Inhalte. Jarvis behandelt sie als Daten, nicht als Anweisungen, und kann ohnehin nichts senden.
+
+### GMX einrichten
+1. Im Browser bei [gmx.net](https://www.gmx.net) anmelden → **E-Mail** → unten links **Einstellungen (Zahnrad)** → **POP3/IMAP Abruf** → Haken bei **„POP3 und IMAP Zugriff erlauben“** → Speichern.
+2. Hast du bei GMX die **Zwei-Faktor-Authentifizierung** aktiv, brauchst du ein **anwendungsspezifisches Passwort** (in den GMX-Sicherheitseinstellungen). Sonst funktioniert dein normales GMX-Passwort.
+3. In Vercel unter *Settings → Environment Variables* anlegen (Typ **Secret**):
+   - `GMX_EMAIL` = deine GMX-Adresse
+   - `GMX_PASSWORD` = Passwort bzw. anwendungsspezifisches Passwort
+4. Neu deployen.
+
+### Apple-Kalender (iCloud) einrichten
+1. Auf [account.apple.com](https://account.apple.com) anmelden → **Anmeldung und Sicherheit** → **App-spezifische Passwörter** → neues Passwort erstellen, Name z. B. `Jarvis`. (Dafür muss die Zwei-Faktor-Authentifizierung deiner Apple-ID aktiv sein.)
+2. In Vercel anlegen (Typ **Secret**):
+   - `ICLOUD_APPLE_ID` = die E-Mail-Adresse deiner Apple-ID
+   - `ICLOUD_APP_PASSWORD` = das app-spezifische Passwort (Format `abcd-efgh-ijkl-mnop`)
+   - optional `ICLOUD_CALENDAR_NAME` = Kalender für neue Termine (z. B. `Privat`)
+3. Neu deployen.
+
+App-spezifische Passwörter kannst du jederzeit wieder löschen – dann hat Jarvis sofort keinen Zugriff mehr. Ob alles eingerichtet ist, zeigt die Übersicht (Kernstatus) und `/api/health`.
+
+---
+
 ## Lokal starten
 
 ```bash
@@ -180,6 +215,9 @@ Dann im Browser [http://localhost:3000](http://localhost:3000) öffnen, E-Mail e
 | `ANTHROPIC_API_KEY` | ✅ bei Anthropic | **ja** | API-Schlüssel von Anthropic – nur serverseitig verwendet |
 | `ANTHROPIC_MODEL` | – | nein | Standard `claude-haiku-5-5` (günstigstes aktuelles Modell). Stärker, aber teurer: `claude-sonnet-5-5`, `claude-opus-5-5` |
 | `ANTHROPIC_EFFORT` | – | nein | `low`, `medium` oder `high`. Weniger Aufwand = günstiger und schneller |
+| `GMX_EMAIL` / `GMX_PASSWORD` | – | **ja** | GMX-Postfach (nur lesen), siehe [GMX & Apple-Kalender](#gmx--apple-kalender) |
+| `ICLOUD_APPLE_ID` / `ICLOUD_APP_PASSWORD` | – | **ja** | iCloud-Kalender, app-spezifisches Passwort |
+| `ICLOUD_CALENDAR_NAME` | – | nein | Kalender für neue Termine (Standard: der erste) |
 | `ALLOWED_EMAILS` | ✅ | nein | Kommagetrennte Liste der E-Mail-Adressen, die Jarvis nutzen dürfen. **In Produktion Pflicht** – ist sie leer, kommt niemand hinein. |
 | `AI_MAX_OUTPUT_TOKENS` | – | nein | Obergrenze für die Länge einer KI-Antwort (Standard 4000) |
 | `RATE_LIMIT_CHAT_PER_MINUTE` | – | nein | KI-Anfragen pro Minute und Nutzer (Standard 10) |
@@ -225,7 +263,7 @@ Eine Vorlage mit Platzhaltern liegt in [`.env.example`](.env.example).
 - **Validierung:** Alle Eingaben und Tool-Argumente werden serverseitig mit Zod geprüft (Längen, Datumsformat, IDs) – direkt vor der Ausführung noch einmal. Die Datenbank prüft die Grenzen zusätzlich.
 - **Geheimnisse:** Der Gemini- bzw. Anthropic-Schlüssel wird nur auf dem Server gelesen, nie an den Browser geschickt und nie geloggt. Logs enthalten keine Chatinhalte, nur Fehlercodes.
 - **Prompt-Injection:** Inhalte aus Notizen, Aufgaben und Tool-Ergebnissen werden der KI als Daten gekennzeichnet. Wichtiger: Selbst wenn die KI sich „überreden“ lässt, kann sie ohne deinen Klick nichts verändern und sowieso nur auf deine eigenen Daten zugreifen.
-- **Keine gefährlichen Tools:** Kein Zugriff auf Shell, Dateien, beliebige URLs, E-Mails, Käufe oder externe Konten.
+- **Keine gefährlichen Tools:** Kein Zugriff auf Shell, Dateien oder beliebige URLs, keine Käufe. E-Mails können nur gelesen, nicht gesendet werden; Kalendertermine werden nur nach Bestätigung angelegt und nie geändert oder gelöscht.
 - **Rate-Limiting:** Zähler liegen in der Datenbank (funktioniert auf Vercel mit vielen parallelen Serverless-Instanzen) – pro Nutzer und Minute bzw. Tag.
 - **Weitere Schutzmaßnahmen:** Herkunftsprüfung (Origin) bei schreibenden API-Anfragen, Sicherheits-Header, Markdown ohne rohes HTML, Seiten nicht für Suchmaschinen indexierbar.
 
@@ -278,6 +316,7 @@ tests/                Vitest-Tests
 
 - **Keine Benachrichtigungen:** Ein Fälligkeitsdatum ist nur eine Markierung. Jarvis verschickt keine Push-Nachrichten oder E-Mails.
 - **Gemini-Gratis-Limits:** Bei vielen Nachrichten kurz hintereinander oder vielen Tool-Aufrufen kann das kostenlose Kontingent erreicht werden – dann kurz warten bzw. am nächsten Tag weitermachen.
+- **Postfach/Kalender:** Abruf bei jedem Öffnen (kein Hintergrund-Abgleich), daher kann das Laden ein paar Sekunden dauern. GMX schaltet den IMAP-Zugriff nach längerer Nichtnutzung manchmal wieder ab.
 - **Kein Internetzugang der KI:** Jarvis kennt nur sein Trainingswissen, deine Daten und das aktuelle Datum. Aktuelle Nachrichten/Wetter kann er nicht abrufen.
 - **Lange Chats:** Ab etwa 60.000 Zeichen Verlauf schickt Jarvis nur die neuesten Nachrichten an die KI; ältere Teile „vergisst“ er in diesem Chat. Erinnerungen bleiben immer erhalten.
 - **Magic-Link:** Standardmäßig im selben Browser öffnen (siehe optionale E-Mail-Vorlage). Der eingebaute Supabase-Mailversand erlaubt nur wenige E-Mails pro Stunde.
@@ -296,4 +335,4 @@ tests/                Vitest-Tests
 4. **Echte Erinnerungs-Benachrichtigungen** (z. B. Web-Push mit einem Vercel-Cron-Job) – erst dann gibt es echte Benachrichtigungen.
 5. **Kosten-Übersicht** in der App aus den bereits gespeicherten Token-Zahlen (`messages.input_tokens/output_tokens`).
 6. **Weitere KI-Anbieter** über einen neuen Adapter in `src/lib/ai/`.
-7. **Externe Dienste** (Kalender, E-Mail) – nur mit derselben Bestätigungslogik und sehr vorsichtig.
+7. **E-Mails beantworten** – technisch möglich (SMTP), aber nur mit derselben Bestätigungslogik und sehr vorsichtig.

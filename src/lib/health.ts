@@ -1,5 +1,6 @@
 import "server-only";
 import { getAiConfig, getAllowedEmails } from "./env";
+import { integrationStatus } from "./integrations/config";
 
 // Einrichtungs-Check: zeigt nur öffentliche oder harmlose Informationen
 // (keine Schlüssel im Klartext), damit Konfigurationsfehler schnell auffallen.
@@ -120,6 +121,10 @@ export async function runHealthCheck() {
       geminiModell: ai.gemini.model,
       geminiVerbindung,
       anthropicSchluesselGesetzt: Boolean(ai.anthropic.apiKey),
+    },
+    dienste: {
+      gmx: integrationStatus().mail === "configured" ? "eingerichtet" : "nicht eingerichtet",
+      appleKalender: integrationStatus().calendar === "configured" ? "eingerichtet" : "nicht eingerichtet",
     },
     zugriff: {
       anzahlFreigeschalteterEmails: getAllowedEmails().length,

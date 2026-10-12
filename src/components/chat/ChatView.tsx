@@ -8,6 +8,7 @@ import { parseNdjson } from "@/lib/agent/events";
 import { ApiError, api, errorMessage, goToLogin } from "@/lib/client/api";
 import { useChatList } from "../AppShell";
 import { LogoMark } from "../icons";
+import { CoreOrb } from "../hud/CoreOrb";
 import { Button, ErrorBanner, Spinner } from "../ui";
 import { ActionCard } from "./ActionCard";
 import { Composer } from "./Composer";
@@ -38,7 +39,13 @@ function updateActionIn(segments: DisplaySegment[], action: ClientAction): Displ
   return segments.map((s) => (s.type === "action" && s.action.id === action.id ? { type: "action", action } : s));
 }
 
-export function ChatView({ initialConversationId }: { initialConversationId: string | null }) {
+export function ChatView({
+  initialConversationId,
+  initialPrompt = "",
+}: {
+  initialConversationId: string | null;
+  initialPrompt?: string;
+}) {
   const router = useRouter();
   const { refresh: refreshChatList } = useChatList();
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -53,7 +60,7 @@ export function ChatView({ initialConversationId }: { initialConversationId: str
   const [notice, setNotice] = useState<string | null>(null);
   const [needsContinue, setNeedsContinue] = useState(false);
   const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialPrompt);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -271,8 +278,8 @@ export function ChatView({ initialConversationId }: { initialConversationId: str
           {loading && <Spinner label="Chat wird geladen …" />}
 
           {empty && (
-            <div className="mt-[8vh] text-center">
-              <LogoMark className="mx-auto text-accent" width={44} height={44} />
+            <div className="mt-[4vh] text-center">
+              <CoreOrb size={170} sublabel="BEREIT" />
               <h1 className="mt-4 text-2xl font-semibold tracking-tight">Hallo! Ich bin Jarvis.</h1>
               <p className="mx-auto mt-2 max-w-md text-muted">
                 Frag mich etwas oder lass mich deine Aufgaben, Notizen und Erinnerungen verwalten. Änderungen führe ich erst
@@ -284,7 +291,7 @@ export function ChatView({ initialConversationId }: { initialConversationId: str
                     key={s}
                     type="button"
                     onClick={() => setInput(s)}
-                    className="rounded-xl border border-line bg-surface px-3.5 py-3 text-left text-sm text-muted hover:border-accent/50 hover:text-text"
+                    className="hud-panel px-3.5 py-3 text-left text-sm text-muted hover:border-accent/50 hover:text-text"
                   >
                     {s}
                   </button>

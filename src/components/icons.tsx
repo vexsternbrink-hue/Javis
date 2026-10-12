@@ -63,3 +63,30 @@ export const LogoMark = (p: SVGProps<SVGSVGElement>) => (
     <circle cx="32" cy="32" r="8" fill="currentColor" />
   </svg>
 );
+export const GridIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></Icon>
+);
+export const MailIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></Icon>
+);
+export const CalendarIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></Icon>
+);
+export const CoreIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="8" strokeDasharray="3 3" /></Icon>
+);
+export const DatabaseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></Icon>
+);
+export const ShieldIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><path d="M12 3 5 6v6c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6z" /><path d="m9 12 2 2 4-4" /></Icon>
+);
+export const BoltIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><path d="M13 3 5 14h6l-1 7 8-11h-6z" /></Icon>
+);
+export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><circle cx="11" cy="11" r="6" /><path d="m20 20-4.2-4.2" /></Icon>
+);
+export const ArrowRightIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Icon>
+);

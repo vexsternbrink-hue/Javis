@@ -14,7 +14,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/actions/[id
   if (body instanceof Response) return body;
 
   try {
-    const result = await decideAction(auth.supabase, id, body.decision);
+    const result = await decideAction(auth.supabase, id, body.decision, auth.user.email ?? null);
     if (!result.ok) return jsonError(result.status, result.error);
     return jsonOk(result);
   } catch (error) {

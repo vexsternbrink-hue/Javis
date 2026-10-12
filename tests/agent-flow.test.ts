@@ -194,3 +194,45 @@ describe("Agent: Validierung und Grenzen", () => {
     expect(events.some((e) => e.type === "notice")).toBe(true);
   });
 });
+
+describe("Agent: Kalender und Postfach", () => {
+  it("legt Termine nur als Vorschlag an und verweigert Fremden den Zugriff", async () => {
+    vi.stubEnv("ALLOWED_EMAILS", "besitzer@example.com,gast@example.com");
+    vi.stubEnv("ICLOUD_APPLE_ID", "besitzer@icloud.com");
+    vi.stubEnv("ICLOUD_APP_PASSWORD", "abcd-efgh-ijkl-mnop");
+    try {
+      const call = {
+        type: "tool_call" as const,
+        id: "t1",
+        name: "create_event",
+        input: { title: "Zahnarzt", start: "2026-10-15T09:30", end: "2026-10-15T10:00" },
+      };
+      // Besitzer: Vorschlag wartet auf Bestätigung, nichts wird ausgeführt
+      provider.script = [{ content: [call] }];
+      const events: ChatEvent[] = [];
+      await runAgent({ sb, userEmail: "besitzer@example.com", mode: { type: "message", text: "Termin" }, emit: (e) => events.push(e) });
+      expect(db.actions[0]).toMatchObject({ tool_name: "create_event", status: "pending", requires_confirmation: true });
+      expect(events.some((e) => e.type === "awaiting_confirmation")).toBe(true);
+
+      // Gast: Vorschlag wird sofort abgelehnt
+      resetDb();
+      provider.script = [{ content: [call] }, { content: [{ type: "text", text: "Geht nicht." }] }];
+      await runAgent({ sb, userEmail: "gast@example.com", mode: { type: "message", text: "Termin" }, emit: () => {} });
+      expect(db.actions[0]).toMatchObject({ tool_name: "create_event", status: "failed" });
+      expect(JSON.stringify(db.actions[0].result)).toContain("Besitzer");
+
+      // Gast darf auch nicht lesend auf das Postfach zugreifen
+      resetDb();
+      vi.stubEnv("GMX_EMAIL", "besitzer@gmx.de");
+      vi.stubEnv("GMX_PASSWORD", "geheim");
+      provider.script = [
+        { content: [{ type: "tool_call", id: "t2", name: "list_emails", input: {} }] },
+        { content: [{ type: "text", text: "Kein Zugriff." }] },
+      ];
+      await runAgent({ sb, userEmail: "gast@example.com", mode: { type: "message", text: "Mails?" }, emit: () => {} });
+      expect(db.actions[0]).toMatchObject({ tool_name: "list_emails", status: "failed" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

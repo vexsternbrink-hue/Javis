@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (!getSupabaseConfig()) return <SetupMissing />;
-  if (await getCurrentUser()) redirect("/chat");
+  if (await getCurrentUser()) redirect("/");
   const { error } = await searchParams;
   return <LoginForm linkError={error === "link"} />;
 }

@@ -13,6 +13,11 @@ export const TOOL_META: Record<string, { label: string; kind: ToolKind }> = {
   update_note: { label: "Notiz ändern", kind: "write" },
   delete_note: { label: "Notiz löschen", kind: "write" },
   save_memory: { label: "Erinnerung speichern", kind: "write" },
+  list_emails: { label: "Posteingang ansehen", kind: "read" },
+  search_emails: { label: "E-Mails durchsuchen", kind: "read" },
+  read_email: { label: "E-Mail lesen", kind: "read" },
+  list_events: { label: "Termine ansehen", kind: "read" },
+  create_event: { label: "Termin anlegen", kind: "write" },
 };
 
 export const FIELD_LABELS: Record<string, string> = {
@@ -24,6 +29,12 @@ export const FIELD_LABELS: Record<string, string> = {
   query: "Suchbegriff",
   status: "Filter",
   limit: "Anzahl",
+  all_day: "Ganztägig",
+  start: "Beginn",
+  end: "Ende",
+  location: "Ort",
+  notes: "Notiz",
+  calendar: "Kalender",
 };
 
 export function toolLabel(name: string): string {

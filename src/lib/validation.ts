@@ -100,3 +100,28 @@ export type TaskCreate = z.infer<typeof taskCreateSchema>;
 export type TaskUpdate = z.infer<typeof taskUpdateSchema>;
 export type NoteCreate = z.infer<typeof noteCreateSchema>;
 export type NoteUpdate = z.infer<typeof noteUpdateSchema>;
+
+const localDateTime = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Zeit muss im Format JJJJ-MM-TTTHH:MM sein");
+
+export const eventCreateSchema = z
+  .object({
+    title: trimmed(200, "Titel"),
+    all_day: z.boolean().default(false),
+    start: z.string(),
+    end: z.string(),
+    location: z.string().trim().max(200, "Ort ist zu lang").nullish(),
+    notes: z.string().trim().max(2000, "Notiz ist zu lang").nullish(),
+    calendar: z.string().trim().max(100).nullish(),
+  })
+  .superRefine((v, ctx) => {
+    const format = v.all_day ? isoDate : localDateTime;
+    for (const key of ["start", "end"] as const) {
+      const r = format.safeParse(v[key]);
+      if (!r.success) ctx.addIssue({ code: "custom", path: [key], message: r.error.issues[0]?.message ?? "Ungültig" });
+    }
+    if (v.end < v.start) ctx.addIssue({ code: "custom", path: ["end"], message: "Ende liegt vor dem Beginn" });
+  });
+
+export type EventCreate = z.infer<typeof eventCreateSchema>;

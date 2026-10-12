@@ -30,6 +30,7 @@ export async function decideAction(
   sb: ServerSupabase,
   actionId: string,
   decision: "approve" | "reject",
+  userEmail: string | null = null,
 ): Promise<DecisionResult> {
   const action = await loadAction(sb, actionId);
   if (!action) return { ok: false, status: 404, error: "Aktion nicht gefunden." };
@@ -55,7 +56,7 @@ export async function decideAction(
   } else {
     const claimed = await transitionAction(sb, action.id, "pending", "approved");
     if (!claimed) return { ok: false, status: 409, error: "Über diese Aktion wurde bereits entschieden." };
-    const outcome = await executeTool(sb, claimed.tool_name, claimed.input);
+    const outcome = await executeTool(sb, claimed.tool_name, claimed.input, { userEmail });
     const result: StoredActionResult = {
       ...outcomeToResultContent(outcome),
       ...(outcome.ok ? { summary: outcome.summary } : { error: outcome.error }),

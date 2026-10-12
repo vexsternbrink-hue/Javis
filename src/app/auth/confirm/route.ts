@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     ok = !error;
   }
 
-  if (ok) return NextResponse.redirect(redirectTo("/chat"));
+  if (ok) return NextResponse.redirect(redirectTo("/"));
   const failed = redirectTo("/login");
   failed.searchParams.set("error", "link");
   return NextResponse.redirect(failed);
