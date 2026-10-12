@@ -1,12 +1,15 @@
 import "server-only";
 import type { z } from "zod";
 
+// charset=utf-8 ausdrücklich angeben, damit Umlaute in jedem Browser richtig erscheinen.
+const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+
 export function jsonError(status: number, message: string): Response {
-  return Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json({ error: message }, { status, headers: JSON_HEADERS });
 }
 
 export function jsonOk(data: unknown, status = 200): Response {
-  return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(data, { status, headers: JSON_HEADERS });
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
