@@ -1,0 +1,15 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "Jarvis",
+    short_name: "Jarvis",
+    description: "Dein persönlicher KI-Assistent",
+    start_url: "/chat",
+    display: "standalone",
+    background_color: "#0a0e15",
+    theme_color: "#0a0e15",
+    lang: "de",
+    icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
+  };
+}

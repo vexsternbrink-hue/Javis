@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* Ruhiger Dark Mode mit dezenten blauen Akzenten */
+@theme {
+  --color-bg: #0a0e15;
+  --color-surface: #111722;
+  --color-surface-2: #172031;
+  --color-line: #232d3f;
+  --color-text: #e6eaf2;
+  --color-muted: #94a0b4;
+  --color-accent: #4c8dff;
+  --color-accent-strong: #2f74f0;
+  --color-accent-soft: #15284a;
+  --color-danger: #f26d6d;
+  --color-danger-soft: #3a1a1f;
+  --color-success: #4fc38a;
+  --color-warn: #f0b85a;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Sichtbarer Fokus für Tastaturbedienung (in @layer base, damit Utilities ihn überschreiben können) */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Markdown in Chat-Antworten */
+@layer components {
+.markdown {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.markdown > * + * {
+  margin-top: 0.7em;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+.markdown h1 { font-size: 1.25rem; }
+.markdown h2 { font-size: 1.125rem; }
+.markdown h3 { font-size: 1rem; }
+.markdown ul { list-style: disc; padding-left: 1.4em; }
+.markdown ol { list-style: decimal; padding-left: 1.4em; }
+.markdown li + li { margin-top: 0.25em; }
+.markdown a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.markdown strong { font-weight: 600; }
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-radius: 0.35rem;
+  padding: 0.1em 0.35em;
+}
+.markdown pre {
+  background: #0d131d;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+}
+.markdown pre code { background: none; border: 0; padding: 0; }
+.markdown blockquote {
+  border-left: 3px solid var(--color-line);
+  padding-left: 0.85rem;
+  color: var(--color-muted);
+}
+.markdown table { width: 100%; border-collapse: collapse; font-size: 0.925em; display: block; overflow-x: auto; }
+.markdown th, .markdown td { border: 1px solid var(--color-line); padding: 0.4rem 0.6rem; text-align: left; }
+.markdown th { background: var(--color-surface-2); font-weight: 600; }
+.markdown hr { border-color: var(--color-line); }
+}
