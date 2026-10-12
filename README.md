@@ -164,6 +164,8 @@ Dann im Browser [http://localhost:3000](http://localhost:3000) öffnen, E-Mail e
 
 Änderst du später Umgebungsvariablen in Vercel, musst du unter **Deployments → … → Redeploy** neu veröffentlichen.
 
+**Einrichtung prüfen:** Öffne `https://<deine-app>.vercel.app/api/health`. Die Seite zeigt (ohne geheime Werte), ob Supabase-Adresse und -Schlüssel zusammenpassen, ob noch Platzhalter wie `HIER_…` eingetragen sind und welcher KI-Anbieter aktiv ist.
+
 ---
 
 ## Umgebungsvariablen

@@ -10,6 +10,19 @@ const PUBLIC_PATHS = ["/login", "/auth/confirm", "/api/auth/magic-link"];
  * API-Routen prüfen die Anmeldung zusätzlich selbst.
  */
 export async function updateSession(request: NextRequest) {
+  // Landet ein Anmeldelink nicht auf /auth/confirm (z. B. weil Supabase auf die
+  // Site URL umleitet), den Code dorthin weiterreichen.
+  const params = request.nextUrl.searchParams;
+  if (
+    request.nextUrl.pathname !== "/auth/confirm" &&
+    !request.nextUrl.pathname.startsWith("/api/") &&
+    (params.has("code") || (params.has("token_hash") && params.has("type")))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/confirm";
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
   const config = getSupabaseConfig();
   if (!config) return response;
