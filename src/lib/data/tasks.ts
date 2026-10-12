@@ -4,7 +4,7 @@ import type { TaskCreate, TaskUpdate } from "../validation";
 import type { Task } from "./types";
 import { dbError } from "./errors";
 
-const COLUMNS = "id, title, details, due_date, done, completed_at, created_at, updated_at";
+const COLUMNS = "id, title, details, due_date, done, priority, completed_at, created_at, updated_at";
 
 export type TaskFilter = "open" | "done" | "all";
 
@@ -30,7 +30,12 @@ export async function getTask(sb: ServerSupabase, id: string): Promise<Task | nu
 export async function createTask(sb: ServerSupabase, input: TaskCreate): Promise<Task> {
   const { data, error } = await sb
     .from("tasks")
-    .insert({ title: input.title, details: input.details || null, due_date: input.due_date ?? null })
+    .insert({
+      title: input.title,
+      details: input.details || null,
+      due_date: input.due_date ?? null,
+      priority: input.priority ?? "normal",
+    })
     .select(COLUMNS)
     .single();
   if (error) dbError("Anlegen der Aufgabe", error);
@@ -42,6 +47,7 @@ export async function updateTask(sb: ServerSupabase, id: string, patch: TaskUpda
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.details !== undefined) update.details = patch.details || null;
   if (patch.due_date !== undefined) update.due_date = patch.due_date;
+  if (patch.priority !== undefined) update.priority = patch.priority;
   if (patch.done !== undefined) {
     update.done = patch.done;
     update.completed_at = patch.done ? new Date().toISOString() : null;
@@ -55,4 +61,17 @@ export async function deleteTask(sb: ServerSupabase, id: string): Promise<boolea
   const { data, error } = await sb.from("tasks").delete().eq("id", id).select("id");
   if (error) dbError("Löschen der Aufgabe", error);
   return (data?.length ?? 0) > 0;
+}
+
+/** Zeitpunkte erledigter Aufgaben seit `since` (für die Aktivitätsstatistik). */
+export async function listCompletedSince(sb: ServerSupabase, since: Date): Promise<string[]> {
+  const { data, error } = await sb
+    .from("tasks")
+    .select("completed_at")
+    .eq("done", true)
+    .gte("completed_at", since.toISOString())
+    .order("completed_at", { ascending: true })
+    .limit(1000);
+  if (error) dbError("Laden der Statistik", error);
+  return (data ?? []).map((row) => row.completed_at as string).filter(Boolean);
 }

@@ -1,8 +1,8 @@
 # Jarvis – dein persönlicher KI-Assistent
 
-Jarvis ist eine private Web-App mit KI-Chat, gespeicherten Gesprächen, dauerhaften Erinnerungen sowie Aufgaben und Notizen. Jarvis kann deine Aufgaben und Notizen auch direkt aus dem Chat heraus lesen und – **nach deiner Bestätigung** – anlegen, ändern oder löschen.
+Jarvis ist eine private Web-App mit KI-Chat, gespeicherten Gesprächen, dauerhaften Erinnerungen, Aufgaben, Notizen, Gewohnheiten, Fokus-Timer, Wetter sowie (optional) GMX-Postfach und Apple-Kalender. Jarvis kann deine Daten auch direkt aus dem Chat heraus lesen und – **nach deiner Bestätigung** – anlegen, ändern oder löschen. Du kannst mit Jarvis auch **sprechen** und dir Antworten **vorlesen** lassen.
 
-- **Oberfläche:** Deutsch, ruhiger Dark Mode, fürs Smartphone optimiert
+- **Oberfläche:** Deutsch, „Command Center“ im Sci-Fi-HUD-Stil (dunkel, Cyan-Akzente), Befehlspalette mit Strg/⌘ + K, fürs Smartphone optimiert
 - **Technik:** Next.js 16 (App Router, TypeScript), Tailwind CSS 4, Supabase (Login + Datenbank), KI wahlweise **Google Gemini** (kostenloses Kontingent) oder **Anthropic Claude** (kostenpflichtig), jeweils mit Streaming
 - **Hosting:** Vercel (keine zusätzliche, dauerhaft laufende Server-Anwendung)
 
@@ -29,11 +29,18 @@ Jarvis ist eine private Web-App mit KI-Chat, gespeicherten Gesprächen, dauerhaf
 
 | Bereich | Funktionen |
 |---|---|
-| **Chat** | Antworten werden live gestreamt, Markdown-Darstellung (Listen, Tabellen, Code), Chats bleiben gespeichert, neue Chats anlegen, alte öffnen und löschen, Antwort stoppen |
+| **Command Center** | Startseite mit Begrüßung, animiertem Kern, Live-Uhr, Kernstatus (echter Einrichtungsstand), Wetter, „Heute im Fokus“, Gewohnheiten zum Abhaken, Aktivitätsdiagramm der letzten 7 Tage, Termine, Posteingang, Fokus-Timer, Schnellbefehle (z. B. Tagesbriefing, Wochenrückblick). Alle Zahlen sind echte Daten – nichts ist ausgedacht. |
+| **Befehlspalette** | **Strg/⌘ + K** (oder das Suchfeld oben): zu jeder Seite springen, Aktionen starten, alle deine Aufgaben, Notizen, Erinnerungen, Chats und Gewohnheiten durchsuchen oder Jarvis direkt etwas fragen |
+| **Chat** | Antworten werden live gestreamt, Markdown (Listen, Tabellen, Code), Chats bleiben gespeichert, umbenennen, als Markdown exportieren, Antwort kopieren, Antwort stoppen |
+| **Sprache** | 🎤 Spracheingabe per Mikrofon-Knopf (sendet nach der Sprechpause automatisch), 🔊 Antworten vorlesen – einzeln oder automatisch, Stimme und Tempo wählbar. Nutzt die kostenlose Sprachfunktion des Browsers. |
+| **Aufgaben** | Anlegen, bearbeiten, abhaken, löschen, Priorität (hoch/normal/niedrig), Fälligkeitsdatum mit „heute“/„überfällig“, Filter „Fällig“, Zähler |
+| **Notizen** | Anlegen, bearbeiten, löschen, durchsuchen, **anheften**, Markdown-Vorschau, Wortzähler |
+| **Gewohnheiten** | Tägliche Gewohnheiten mit Symbol und Wochenziel, Abhaken per Klick (auch rückwirkend für die letzten 14 Tage), aktuelle Serie 🔥 und Rekord, Tagesfortschritt |
+| **Fokus-Timer** | Pomodoro-Timer (25/50 Min., Pausen, eigene Dauer), läuft seitenübergreifend weiter und übersteht Neuladen, Signalton und optionale Browser-Benachrichtigung am Ende, Statistik der Fokuszeit |
+| **Wetter** | Aktuelles Wetter und 4-Tage-Vorhersage für deinen Ort über **Open-Meteo** (kostenlos, kein Konto, kein Schlüssel). Jarvis kann im Chat auch das Wetter für andere Orte abrufen. |
 | **Erinnerungen** | Eigener Bereich für dauerhafte Infos (Name, Interessen, Antwortstil). Hinzufügen, bearbeiten, löschen. Jarvis berücksichtigt sie in jedem Chat. Aus dem Chat heraus wird nur nach deiner Bestätigung etwas gespeichert. |
-| **Aufgaben** | Anlegen, bearbeiten, abhaken, löschen, optionales Fälligkeitsdatum (mit Hinweis „heute“/„überfällig“) |
-| **Notizen** | Anlegen, bearbeiten, löschen, durchsuchen |
-| **Agent-Funktionen** | Jarvis nutzt serverseitige Tools: Aufgaben auflisten, Notizen suchen/lesen (automatisch) sowie Aufgaben/Notizen anlegen, ändern, löschen und Erinnerungen speichern (**nur nach Klick auf „Ausführen“**). Das Ergebnis wird im Chat angezeigt. |
+| **Agent-Funktionen** | Jarvis nutzt serverseitige Tools. **Automatisch (nur lesen):** Aufgaben, Notizen, Gewohnheiten, Wetter, Aktivitätsstatistik, Postfach, Termine. **Nur nach Klick auf „Ausführen“:** Aufgaben/Notizen anlegen, ändern, löschen, Erinnerung speichern, Gewohnheit anlegen/abhaken, Termin anlegen. Das echte Ergebnis wird im Chat angezeigt. |
+| **Einstellungen** | Anzeigename für die Begrüßung, Wetter-Ort, Spracheinstellungen, Status der verbundenen Dienste, **Export aller deiner Daten** als JSON-Datei |
 | **Anmeldung** | E-Mail-Magic-Link über Supabase Auth, nur freigeschaltete E-Mail-Adressen |
 
 **Chatverlauf ≠ Erinnerungen:** Ein Chat gilt nur für sich. Erinnerungen kennt Jarvis in jedem Chat.
@@ -67,8 +74,9 @@ Jarvis ist eine private Web-App mit KI-Chat, gespeicherten Gesprächen, dauerhaf
 1. Im Supabase-Projekt links auf **SQL Editor** → **New query**.
 2. Den kompletten Inhalt der Datei [`supabase/migrations/20261012000000_init.sql`](supabase/migrations/20261012000000_init.sql) hineinkopieren.
 3. Auf **Run** klicken. Es sollte „Success. No rows returned“ erscheinen.
+4. Danach genauso die zweite Datei [`supabase/migrations/20261013000000_features.sql`](supabase/migrations/20261013000000_features.sql) ausführen (Gewohnheiten, Fokus-Timer, Einstellungen, Prioritäten, angeheftete Notizen).
 
-Damit werden alle Tabellen, Row-Level-Security-Regeln (jeder sieht nur seine eigenen Daten) und die Rate-Limit-Funktion angelegt.
+Damit werden alle Tabellen, Row-Level-Security-Regeln (jeder sieht nur seine eigenen Daten) und die Rate-Limit-Funktion angelegt. Die Dateien immer **in dieser Reihenfolge** und jede nur **einmal** ausführen.
 
 > Fortgeschritten: Mit der [Supabase CLI](https://supabase.com/docs/guides/cli) geht das auch per `supabase link` und `supabase db push`.
 
@@ -240,6 +248,8 @@ Eine Vorlage mit Platzhaltern liegt in [`.env.example`](.env.example).
 | **Supabase Free** | Nein (im Free-Plan) | Grenzen u. a.: 500 MB Datenbank, begrenzte E-Mails pro Stunde über den eingebauten Mailversand. **Projekte im Free-Plan werden nach ca. einer Woche ohne Aktivität pausiert** – im Dashboard mit einem Klick wieder starten. |
 | **Vercel Hobby** | Nein (im Hobby-Plan) | Nur für private, nicht-kommerzielle Nutzung. Feste Monatsgrenzen; im Hobby-Plan entstehen keine automatischen Zusatzkosten – bei Überschreitung kann Vercel das Projekt pausieren. |
 | **GitHub** | Nein | Private Repositories sind kostenlos. |
+| **Open-Meteo (Wetter)** | Nein | Kostenlos für private, nicht-kommerzielle Nutzung, ohne Konto und ohne Schlüssel (Daten unter CC BY 4.0). |
+| **Sprache (Browser)** | Nein | Spracheingabe und Vorlesen nutzen die eingebaute Sprachfunktion des Browsers. |
 
 **Grobe Beispielrechnung (ohne Gewähr, Preise können sich ändern):** Mit `claude-haiku-5-5` (laut Anthropic ca. 0,10 $ pro 1 Mio. Eingabe-Tokens und 0,50 $ pro 1 Mio. Ausgabe-Tokens) kostet eine typische Nachricht mit ~3.000 Tokens Kontext und ~300 Tokens Antwort etwa 0,0005 $ – also grob 1.000–2.000 Nachrichten pro Dollar. Mit Tools oder sehr langen Chats wird es mehr, mit `claude-opus-5-5` etwa 40-mal so teuer. Prüfe die aktuelle Preisliste unter [anthropic.com/pricing](https://www.anthropic.com/pricing).
 
@@ -263,7 +273,8 @@ Eine Vorlage mit Platzhaltern liegt in [`.env.example`](.env.example).
 - **Validierung:** Alle Eingaben und Tool-Argumente werden serverseitig mit Zod geprüft (Längen, Datumsformat, IDs) – direkt vor der Ausführung noch einmal. Die Datenbank prüft die Grenzen zusätzlich.
 - **Geheimnisse:** Der Gemini- bzw. Anthropic-Schlüssel wird nur auf dem Server gelesen, nie an den Browser geschickt und nie geloggt. Logs enthalten keine Chatinhalte, nur Fehlercodes.
 - **Prompt-Injection:** Inhalte aus Notizen, Aufgaben und Tool-Ergebnissen werden der KI als Daten gekennzeichnet. Wichtiger: Selbst wenn die KI sich „überreden“ lässt, kann sie ohne deinen Klick nichts verändern und sowieso nur auf deine eigenen Daten zugreifen.
-- **Keine gefährlichen Tools:** Kein Zugriff auf Shell, Dateien oder beliebige URLs, keine Käufe. E-Mails können nur gelesen, nicht gesendet werden; Kalendertermine werden nur nach Bestätigung angelegt und nie geändert oder gelöscht.
+- **Keine gefährlichen Tools:** Kein Zugriff auf Shell, Dateien oder beliebige URLs, keine Käufe. E-Mails können nur gelesen, nicht gesendet werden; Kalendertermine werden nur nach Bestätigung angelegt und nie geändert oder gelöscht. Das Wetter-Tool fragt ausschließlich die zwei festen Adressen von Open-Meteo ab – die KI kann keine andere URL bestimmen.
+- **Mikrofon:** nur aktiv, solange du den Mikrofon-Knopf gedrückt hast (kein dauerhaftes Mithören). Die Spracherkennung übernimmt der Browser; je nach Browser wird die Aufnahme dafür an den Hersteller übertragen (Chrome → Google, Safari → Apple).
 - **Rate-Limiting:** Zähler liegen in der Datenbank (funktioniert auf Vercel mit vielen parallelen Serverless-Instanzen) – pro Nutzer und Minute bzw. Tag.
 - **Weitere Schutzmaßnahmen:** Herkunftsprüfung (Origin) bei schreibenden API-Anfragen, Sicherheits-Header, Markdown ohne rohes HTML, Seiten nicht für Suchmaschinen indexierbar.
 
@@ -281,7 +292,8 @@ npm run check       # lint + typecheck + test + build
 ```
 
 - **`npm run test`** prüft u. a. Validierung, Allowlist, Verlaufslogik, den Anthropic- und den Gemini-Adapter (inkl. Streaming mit dem echten Google-SDK gegen einen lokalen Test-Server) und den kompletten Agent-Ablauf mit einem **simulierten** KI-Anbieter (nur im Test!): lesende Tools laufen automatisch, schreibende erst nach Bestätigung, abgelehnte/verworfene Aktionen werden nicht ausgeführt, Doppel-Bestätigungen werden abgewiesen, ungültige Argumente und unbekannte Tools werden blockiert, die Tool-Schleife ist begrenzt.
-- **`npm run test:rls`** startet ein temporäres PostgreSQL, spielt die echte Migration ein und prüft mit zwei Nutzern (A und B) und einem anonymen Besucher, dass niemand fremde Daten lesen, ändern, löschen oder unterschieben kann – und dass Nachrichten und Aktions-Argumente unveränderlich sind.
+- **`npm run test`** prüft außerdem Gewohnheits-Serien, den Fokus-Timer, die Wetter-Anbindung (mit simulierten Open-Meteo-Antworten), das Aufbereiten von Text zum Vorlesen und alle neuen Eingabe-Regeln.
+- **`npm run test:rls`** startet ein temporäres PostgreSQL, spielt die echten Migrationen ein und prüft mit zwei Nutzern (A und B) und einem anonymen Besucher, dass niemand fremde Daten lesen, ändern, löschen oder unterschieben kann (auch Einstellungen, Gewohnheiten und Fokus-Einheiten) – und dass Nachrichten und Aktions-Argumente unveränderlich sind.
 
 ---
 
@@ -290,17 +302,18 @@ npm run check       # lint + typecheck + test + build
 ```
 src/
   app/
-    (app)/            geschützte Seiten: chat, tasks, notes, memories
-    api/              API-Routen (chat-Streaming, Aktionen bestätigen, CRUD)
+    (app)/            geschützte Seiten: Übersicht, chat, tasks, notes, habits, focus, memories, mail, calendar, settings
+    api/              API-Routen (chat-Streaming, Aktionen bestätigen, CRUD, Suche, Wetter, Export)
     auth/             Magic-Link-Bestätigung und Abmelden
     login/            Anmeldeseite
-  components/         Oberfläche (Sidebar, Chat, Aufgaben, Notizen, Erinnerungen)
+  components/         Oberfläche (App-Rahmen, Befehlspalette, Command Center, Chat, Aufgaben, Notizen, Gewohnheiten, Fokus, Einstellungen …)
   lib/
     ai/               KI-Anbieter (austauschbar): types.ts, gemini.ts, anthropic.ts, provider.ts, System-Prompt
     agent/            Agent-Schleife, Tools, Bestätigungslogik, Verlauf
-    data/             Datenbankzugriffe für Aufgaben, Notizen, Erinnerungen
+    data/             Datenbankzugriffe (Aufgaben, Notizen, Erinnerungen, Gewohnheiten, Fokus, Einstellungen, Suche)
+    integrations/     GMX (IMAP), iCloud (CalDAV), Wetter (Open-Meteo)
     supabase/         Supabase-Clients (Server + Proxy)
-    voice/            Vorbereitung für Sprachein-/ausgabe (noch nicht aktiv)
+    voice/            Spracheingabe und Vorlesen (Web Speech API des Browsers)
   proxy.ts            frischt die Login-Sitzung auf und schützt Seiten
 supabase/
   migrations/         SQL-Schema mit RLS
@@ -314,10 +327,11 @@ tests/                Vitest-Tests
 
 ## Bekannte Einschränkungen
 
-- **Keine Benachrichtigungen:** Ein Fälligkeitsdatum ist nur eine Markierung. Jarvis verschickt keine Push-Nachrichten oder E-Mails.
+- **Keine Benachrichtigungen bei Fälligkeit:** Ein Fälligkeitsdatum ist nur eine Markierung. Jarvis verschickt keine Push-Nachrichten oder E-Mails. Einzige Ausnahme: das Ende des Fokus-Timers – und das nur, solange Jarvis in einem Tab geöffnet ist.
+- **Spracheingabe** funktioniert in Chrome, Edge und Safari, aber z. B. nicht in Firefox. Ist sie nicht verfügbar, wird der Mikrofon-Knopf gar nicht erst angezeigt. Die verfügbaren Stimmen hängen vom Gerät ab.
 - **Gemini-Gratis-Limits:** Bei vielen Nachrichten kurz hintereinander oder vielen Tool-Aufrufen kann das kostenlose Kontingent erreicht werden – dann kurz warten bzw. am nächsten Tag weitermachen.
 - **Postfach/Kalender:** Abruf bei jedem Öffnen (kein Hintergrund-Abgleich), daher kann das Laden ein paar Sekunden dauern. GMX schaltet den IMAP-Zugriff nach längerer Nichtnutzung manchmal wieder ab.
-- **Kein Internetzugang der KI:** Jarvis kennt nur sein Trainingswissen, deine Daten und das aktuelle Datum. Aktuelle Nachrichten/Wetter kann er nicht abrufen.
+- **Kaum Internetzugang der KI:** Jarvis kennt sein Trainingswissen, deine Daten, das aktuelle Datum und – über Open-Meteo – das Wetter. Nachrichten oder Webseiten kann er nicht abrufen.
 - **Lange Chats:** Ab etwa 60.000 Zeichen Verlauf schickt Jarvis nur die neuesten Nachrichten an die KI; ältere Teile „vergisst“ er in diesem Chat. Erinnerungen bleiben immer erhalten.
 - **Magic-Link:** Standardmäßig im selben Browser öffnen (siehe optionale E-Mail-Vorlage). Der eingebaute Supabase-Mailversand erlaubt nur wenige E-Mails pro Stunde.
 - **Supabase Free pausiert** inaktive Projekte nach ca. einer Woche.
@@ -329,7 +343,7 @@ tests/                Vitest-Tests
 
 ## Sinnvolle nächste Erweiterungen
 
-1. **Spracheingabe und Vorlesen** über die kostenlose Web Speech API des Browsers (Struktur in `src/lib/voice/` vorbereitet; Mikrofon nur auf Knopfdruck).
+1. **Wake-Word („Hey Jarvis“)** – technisch nur mit dauerhaft aktivem Mikrofon möglich; bewusst weggelassen.
 2. **Automatische Chat-Titel** per KI (kostet minimal zusätzliche Tokens).
 3. **Bessere Notizsuche** mit Postgres-Volltextsuche (kostenlos in Supabase).
 4. **Echte Erinnerungs-Benachrichtigungen** (z. B. Web-Push mit einem Vercel-Cron-Job) – erst dann gibt es echte Benachrichtigungen.

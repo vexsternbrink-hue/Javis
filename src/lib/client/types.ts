@@ -1,5 +1,5 @@
 // Antworttypen der API (für den Browser).
-import type { Task } from "@/lib/data/types";
+import type { HabitWithLogs, Task } from "@/lib/data/types";
 
 export type ServiceState = "configured" | "missing" | "not_owner" | "ok";
 
@@ -16,7 +16,55 @@ export type DashboardData = {
   recentConversations: Array<{ id: string; title: string; updated_at: string }>;
   noteCount: number;
   memoryCount: number;
+  /** Zeitpunkte erledigter Aufgaben der letzten ~14 Tage */
+  completedAt: string[];
+  habits: HabitWithLogs[];
+  focusSessions: Array<{ minutes: number; ended_at: string }>;
+  displayName: string | null;
+  weatherConfigured: boolean;
   status: SystemStatus;
+};
+
+export type WeatherDay = {
+  date: string;
+  code: number;
+  text: string;
+  icon: string;
+  max: number;
+  min: number;
+  precipitationProbability: number | null;
+  sunrise: string | null;
+  sunset: string | null;
+};
+
+export type WeatherResponse =
+  | { configured: false }
+  | {
+      configured: true;
+      location: string | null;
+      forecast: {
+        timezone: string;
+        current: {
+          time: string;
+          temperature: number;
+          apparentTemperature: number;
+          humidity: number;
+          windSpeed: number;
+          code: number;
+          text: string;
+          icon: string;
+          isDay: boolean;
+        };
+        daily: WeatherDay[];
+      };
+    };
+
+export type SearchHit = {
+  kind: "task" | "note" | "memory" | "conversation" | "habit";
+  id: string;
+  title: string;
+  excerpt: string | null;
+  href: string;
 };
 
 export type MailSummary = {

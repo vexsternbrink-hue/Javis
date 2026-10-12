@@ -25,3 +25,15 @@ export function dueState(dueDate: string | null, done: boolean, today = todayIso
   if (dueDate === today) return "today";
   return "upcoming";
 }
+
+/** Lokaler Kalendertag (JJJJ-MM-TT) eines Zeitpunkts. */
+export function localDayOf(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Kurzer Wochentag für einen Tag JJJJ-MM-TT, z. B. "Mo". */
+export function weekdayShort(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
+}

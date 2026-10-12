@@ -10,6 +10,7 @@ import {
   CalendarIcon,
   ChatIcon,
   CloseIcon,
+  FlameIcon,
   GridIcon,
   LogoMark,
   LogoutIcon,
@@ -18,10 +19,17 @@ import {
   MenuIcon,
   NoteIcon,
   PlusIcon,
+  SearchIcon,
+  SettingsIcon,
   TaskIcon,
+  TimerIcon,
   TrashIcon,
 } from "./icons";
 import { Clock } from "./hud/Clock";
+import { CommandPalette } from "./CommandPalette";
+import { FocusRunner } from "./focus/FocusRunner";
+import { useFocusTimer } from "./focus/useFocus";
+import { formatClock } from "@/lib/client/focus-store";
 
 type ChatListContextValue = {
   refresh: () => Promise<void>;
@@ -38,10 +46,32 @@ const NAV = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/tasks", label: "Aufgaben", icon: TaskIcon },
   { href: "/notes", label: "Notizen", icon: NoteIcon },
+  { href: "/habits", label: "Gewohnheiten", icon: FlameIcon },
+  { href: "/focus", label: "Fokus", icon: TimerIcon },
   { href: "/memories", label: "Erinnerungen", icon: MemoryIcon },
   { href: "/mail", label: "Posteingang", icon: MailIcon },
   { href: "/calendar", label: "Kalender", icon: CalendarIcon },
+  { href: "/settings", label: "Einstellungen", icon: SettingsIcon },
 ];
+
+/** Läuft der Fokus-Timer, zeigt dieser Chip die Restzeit an. */
+function FocusChip() {
+  const { state, remaining } = useFocusTimer();
+  if (state.status === "idle") return null;
+  const label = state.mode === "focus" ? "FOKUS" : "PAUSE";
+  return (
+    <Link
+      href="/focus"
+      className={`hud-chip font-mono tabular-nums hover:border-accent/60 ${state.status === "paused" ? "text-warn" : "text-accent"}`}
+      title="Zum Fokus-Timer"
+    >
+      <TimerIcon width={14} height={14} />
+      <span className="text-text/90">{label}</span>
+      {formatClock(remaining)}
+      {state.status === "paused" && <span className="font-sans">· pausiert</span>}
+    </Link>
+  );
+}
 
 function SystemChip({ status }: { status: SystemStatus | null }) {
   if (!status) return <span className="hud-chip text-muted">SYSTEM · …</span>;
@@ -62,6 +92,20 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
+
+  // Strg/⌘ + K öffnet die Befehlspalette von überall
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -135,12 +179,27 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
         </button>
       </div>
 
+      <div className="px-3 pb-2">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setPaletteOpen(true);
+          }}
+          className="flex w-full items-center gap-2 rounded-lg border border-line bg-surface-2/60 px-3 py-2 text-sm text-muted hover:border-accent/50 hover:text-text"
+        >
+          <SearchIcon width={16} height={16} />
+          <span className="flex-1 text-left">Suchen &amp; Befehle</span>
+          <kbd className="hidden rounded border border-line px-1.5 text-[0.65rem] md:inline">Strg K</kbd>
+        </button>
+      </div>
+
       <nav className="px-2" aria-label="Hauptnavigation">
         {NAV.map(({ href, label, icon: NavIcon }) => (
           <Link
             key={href}
             href={href}
-            className={`flex min-h-10 items-center gap-3 rounded-lg border px-3 py-2 text-[15px] ${
+            className={`flex min-h-9 items-center gap-3 rounded-lg border px-3 py-1.5 text-[15px] ${
               activeSection === href
                 ? "border-accent/40 bg-accent-soft/70 text-text shadow-[inset_3px_0_0_0_rgba(63,208,255,0.9)]"
                 : "border-transparent text-muted hover:bg-surface-2 hover:text-text"
@@ -230,9 +289,19 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="hidden items-center gap-4 border-b border-accent/15 bg-surface/60 px-6 py-2.5 backdrop-blur md:flex">
+          <header className="hidden items-center gap-3 border-b border-accent/15 bg-surface/60 px-6 py-2.5 backdrop-blur md:flex">
             <SystemChip status={status} />
-            <Clock className="ml-auto text-right [&>div:last-child]:text-lg" />
+            <FocusChip />
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="ml-4 flex w-full max-w-sm items-center gap-2 rounded-full border border-line bg-surface-2/50 px-4 py-1.5 text-sm text-muted hover:border-accent/50 hover:text-text"
+            >
+              <SearchIcon width={16} height={16} />
+              <span className="flex-1 text-left">Suchen oder Jarvis fragen …</span>
+              <kbd className="rounded border border-line px-1.5 text-[0.65rem]">Strg K</kbd>
+            </button>
+            <Clock className="ml-auto shrink-0 text-right [&>div:last-child]:text-lg" />
           </header>
           <header className="flex items-center gap-2 border-b border-accent/15 bg-surface/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
             <button
@@ -246,13 +315,21 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
             <span className="flex items-center gap-2 py-3 font-semibold tracking-[0.25em] text-accent">
               <LogoMark className="text-accent" width={22} height={22} /> JARVIS
             </span>
-            <Link href="/chat" className="ml-auto rounded-lg p-2.5 text-muted hover:bg-surface-2" aria-label="Neuer Chat">
+            <span className="ml-auto">
+              <FocusChip />
+            </span>
+            <button type="button" onClick={() => setPaletteOpen(true)} className="rounded-lg p-2.5 text-muted hover:bg-surface-2" aria-label="Suchen">
+              <SearchIcon />
+            </button>
+            <Link href="/chat" className="rounded-lg p-2.5 text-muted hover:bg-surface-2" aria-label="Neuer Chat">
               <PlusIcon />
             </Link>
           </header>
           <main className="min-h-0 flex-1">{children}</main>
         </div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={closePalette} />
+      <FocusRunner />
     </ChatListContext.Provider>
   );
 }

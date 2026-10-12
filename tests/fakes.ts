@@ -34,7 +34,7 @@ export function resetDb() {
 }
 
 export function addTask(title: string): Task {
-  const task: Task = { id: uuid(), title, details: null, due_date: null, done: false, completed_at: null, created_at: now(), updated_at: now() };
+  const task: Task = { id: uuid(), title, details: null, due_date: null, done: false, priority: "normal", completed_at: null, created_at: now(), updated_at: now() };
   db.tasks.push(task);
   return task;
 }
@@ -131,6 +131,9 @@ export const tasks = {
     if (!t) return null;
     Object.assign(t, patch);
     return t;
+  },
+  async listCompletedSince() {
+    return db.tasks.filter((t) => t.done && t.completed_at).map((t) => t.completed_at as string);
   },
   async deleteTask(_sb: unknown, id: string) {
     db.calls.deleteTask.push(id);

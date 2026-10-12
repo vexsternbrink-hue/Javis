@@ -44,6 +44,22 @@ insert into public.agent_actions (id, conversation_id, message_id, tool_use_id, 
 insert into public.tasks (id, title) values ('33333333-3333-3333-3333-333333333333', 'Aufgabe von A');
 insert into public.notes (id, title, content) values ('44444444-4444-4444-4444-444444444444', 'Notiz von A', 'privat');
 insert into public.memories (id, content) values ('55555555-5555-5555-5555-555555555555', 'A mag Mathe');
+insert into public.user_settings (display_name, city, latitude, longitude) values ('Anna', 'Berlin', 52.52, 13.41);
+insert into public.habits (id, title, emoji) values ('66666666-6666-6666-6666-666666666666', 'Lesen', '📚');
+insert into public.habit_logs (habit_id, day) values ('66666666-6666-6666-6666-666666666666', '2026-10-12');
+insert into public.focus_sessions (label, minutes) values ('Mathe lernen', 25);
+update public.tasks set priority = 'high' where id = '33333333-3333-3333-3333-333333333333';
+update public.notes set pinned = true where id = '44444444-4444-4444-4444-444444444444';
+
+select pg_temp.expect_error($$update public.tasks set priority = 'egal'$$, 'Ungültige Priorität');
+select pg_temp.expect_error($$update public.user_settings set user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'$$, 'A ändert user_id der Einstellungen');
+select pg_temp.expect_error($$insert into public.user_settings (display_name) values ('Doppelt')$$, 'Zweite Einstellungszeile');
+update public.user_settings set display_name = 'Anna B.';
+select pg_temp.expect_eq((select count(*) from public.user_settings where display_name = 'Anna B.'), 1, 'A ändert eigene Einstellungen');
+insert into public.user_settings (display_name, city, latitude, longitude) values ('Anna', 'Berlin', 52.52, 13.41)
+  on conflict (user_id) do update set display_name = excluded.display_name, city = excluded.city,
+    latitude = excluded.latitude, longitude = excluded.longitude;
+select pg_temp.expect_eq((select count(*) from public.user_settings where display_name = 'Anna'), 1, 'A speichert Einstellungen per Upsert');
 
 select pg_temp.expect_eq((select count(*) from public.tasks), 1, 'A sieht eigene Aufgabe');
 select pg_temp.expect_eq((select count(*) from public.messages), 1, 'A sieht eigene Nachricht');
@@ -71,6 +87,27 @@ select pg_temp.expect_eq((select count(*) from public.agent_actions), 0, 'B sieh
 select pg_temp.expect_eq((select count(*) from public.tasks), 0, 'B sieht keine Aufgaben von A');
 select pg_temp.expect_eq((select count(*) from public.notes), 0, 'B sieht keine Notizen von A');
 select pg_temp.expect_eq((select count(*) from public.memories), 0, 'B sieht keine Erinnerungen von A');
+select pg_temp.expect_eq((select count(*) from public.user_settings), 0, 'B sieht keine Einstellungen von A');
+select pg_temp.expect_eq((select count(*) from public.habits), 0, 'B sieht keine Gewohnheiten von A');
+select pg_temp.expect_eq((select count(*) from public.habit_logs), 0, 'B sieht keine Gewohnheits-Einträge von A');
+select pg_temp.expect_eq((select count(*) from public.focus_sessions), 0, 'B sieht keine Fokus-Einheiten von A');
+
+with u as (update public.user_settings set city = 'gehackt' returning 1)
+select pg_temp.expect_eq((select count(*) from u), 0, 'B kann Einstellungen von A nicht ändern');
+with u as (update public.habits set title = 'gehackt' returning 1)
+select pg_temp.expect_eq((select count(*) from u), 0, 'B kann Gewohnheit von A nicht ändern');
+with d as (delete from public.habit_logs returning 1)
+select pg_temp.expect_eq((select count(*) from d), 0, 'B kann Einträge von A nicht löschen');
+with d as (delete from public.focus_sessions returning 1)
+select pg_temp.expect_eq((select count(*) from d), 0, 'B kann Fokus-Einheiten von A nicht löschen');
+select pg_temp.expect_error(
+  $$insert into public.habit_logs (habit_id, day) values ('66666666-6666-6666-6666-666666666666', '2026-10-13')$$,
+  'B trägt in Gewohnheit von A ein');
+select pg_temp.expect_error(
+  $$insert into public.focus_sessions (user_id, minutes) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 25)$$,
+  'B legt Fokus-Einheit im Namen von A an');
+insert into public.user_settings (display_name) values ('Ben');
+select pg_temp.expect_eq((select count(*) from public.user_settings), 1, 'B hat eigene Einstellungen');
 
 with u as (update public.tasks set title = 'gehackt' where id = '33333333-3333-3333-3333-333333333333' returning 1)
 select pg_temp.expect_eq((select count(*) from u), 0, 'B kann Aufgabe von A nicht ändern');
@@ -105,6 +142,12 @@ select pg_temp.expect_error(
 select pg_temp.expect_eq((select count(*) from public.tasks), 1, 'Aufgabe von A unverändert vorhanden');
 select pg_temp.expect_eq((select count(*) from public.tasks where title = 'Aufgabe von A'), 1, 'Titel von A unverändert');
 select pg_temp.expect_eq((select count(*) from public.notes), 1, 'Notiz von A noch vorhanden');
+select pg_temp.expect_eq((select count(*) from public.user_settings where city = 'Berlin'), 1, 'Einstellungen von A unverändert');
+select pg_temp.expect_eq((select count(*) from public.habit_logs), 1, 'Gewohnheits-Eintrag von A unverändert');
+
+-- Löschen einer Gewohnheit entfernt ihre Einträge (Cascade)
+delete from public.habits where id = '66666666-6666-6666-6666-666666666666';
+select pg_temp.expect_eq((select count(*) from public.habit_logs), 0, 'Cascade löscht Gewohnheits-Einträge');
 
 -- Löschen eines Chats entfernt Nachrichten und Aktionen (Cascade)
 delete from public.conversations where id = '11111111-1111-1111-1111-111111111111';
@@ -119,6 +162,9 @@ select pg_temp.expect_error($$select * from public.tasks$$, 'anon liest Aufgaben
 select pg_temp.expect_error($$select * from public.notes$$, 'anon liest Notizen');
 select pg_temp.expect_error($$select * from public.memories$$, 'anon liest Erinnerungen');
 select pg_temp.expect_error($$select * from public.conversations$$, 'anon liest Chats');
+select pg_temp.expect_error($$select * from public.user_settings$$, 'anon liest Einstellungen');
+select pg_temp.expect_error($$select * from public.habits$$, 'anon liest Gewohnheiten');
+select pg_temp.expect_error($$select * from public.focus_sessions$$, 'anon liest Fokus-Einheiten');
 select pg_temp.expect_error($$select public.check_rate_limit('test', 2, 60)$$, 'anon nutzt Rate-Limit-Funktion');
 reset role;
 

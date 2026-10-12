@@ -31,10 +31,32 @@ describe("Tool-Registry", () => {
   });
 
   it("verlangt Bestätigung für alle schreibenden und unbekannten Tools", () => {
-    for (const name of ["create_task", "update_task", "delete_task", "create_note", "update_note", "delete_note", "save_memory", "create_event"]) {
+    for (const name of [
+      "create_task",
+      "update_task",
+      "delete_task",
+      "create_note",
+      "update_note",
+      "delete_note",
+      "save_memory",
+      "create_event",
+      "create_habit",
+      "log_habit",
+    ]) {
       expect(toolRequiresConfirmation(name)).toBe(true);
     }
-    for (const name of ["list_tasks", "search_notes", "get_note", "list_emails", "search_emails", "read_email", "list_events"]) {
+    for (const name of [
+      "list_tasks",
+      "search_notes",
+      "get_note",
+      "list_emails",
+      "search_emails",
+      "read_email",
+      "list_events",
+      "get_weather",
+      "list_habits",
+      "get_activity_stats",
+    ]) {
       expect(toolRequiresConfirmation(name)).toBe(false);
     }
     expect(toolRequiresConfirmation("irgendwas")).toBe(true);
@@ -45,6 +67,26 @@ describe("Tool-Registry", () => {
     expect(result.ok && result.input).toEqual({ status: "open", limit: 30 });
     const bad = validateToolCall("list_tasks", { limit: 1000 });
     expect(bad.ok).toBe(false);
+  });
+
+  it("bietet Wetter, Gewohnheiten und Statistik immer an", () => {
+    const names = getToolSpecs().map((t) => t.name);
+    for (const name of ["get_weather", "list_habits", "create_habit", "log_habit", "get_activity_stats"]) {
+      expect(names).toContain(name);
+    }
+  });
+
+  it("prüft Priorität und Gewohnheits-Eingaben", () => {
+    expect(validateToolCall("create_task", { title: "Test", priority: "high" }).ok).toBe(true);
+    expect(validateToolCall("create_task", { title: "Test", priority: "dringend" }).ok).toBe(false);
+    expect(validateToolCall("update_task", { id: "00000000-0000-4000-8000-000000000001", priority: "low" }).ok).toBe(true);
+    const habit = validateToolCall("create_habit", { title: "Lesen" });
+    expect(habit.ok && habit.input).toEqual({ title: "Lesen", target_per_week: 7 });
+    expect(validateToolCall("create_habit", { title: "Lesen", target_per_week: 9 }).ok).toBe(false);
+    const log = validateToolCall("log_habit", { id: "00000000-0000-4000-8000-000000000001" });
+    expect(log.ok && log.input).toEqual({ id: "00000000-0000-4000-8000-000000000001", done: true });
+    expect(validateToolCall("log_habit", { id: "x" }).ok).toBe(false);
+    expect(validateToolCall("get_weather", { days: 30 }).ok).toBe(false);
   });
 
   it("entschärft Platzhalter in der Notizsuche", () => {

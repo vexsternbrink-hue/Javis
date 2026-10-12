@@ -11,11 +11,17 @@ import {
   taskUpdateWithIdSchema,
   uuid,
 } from "../validation";
-import { createTask, deleteTask, getTask, listTasks, updateTask } from "../data/tasks";
+import { createTask, deleteTask, getTask, listCompletedSince, listTasks, updateTask } from "../data/tasks";
 import { createNote, deleteNote, getNote, searchNotes, updateNote } from "../data/notes";
 import { createMemory } from "../data/memories";
 import { DataError } from "../data/errors";
-import { eventCreateSchema, isoDate } from "../validation";
+import { eventCreateSchema, habitCreateSchema, isoDate } from "../validation";
+import { createHabit, getHabit, listHabits, setHabitDay } from "../data/habits";
+import { listFocusSessions } from "../data/focus";
+import { getSettings } from "../data/settings";
+import { WeatherError, geocodeCity, getForecast } from "../integrations/weather";
+import { addDays, countThisWeek, currentStreak } from "../habits";
+import { todayInTimezone } from "../server-dates";
 import { getCalendarConfig, getMailConfig, isIntegrationOwner } from "../integrations/config";
 import { MailError, listRecentMails, readMail, searchMails } from "../integrations/mail";
 import { CalendarError, createCalendarEvent, listCalendarEvents } from "../integrations/calendar";
@@ -29,7 +35,9 @@ import { TOOL_META, type ToolKind } from "./tool-meta";
 // damit geprüft – zuerst beim Vorschlag und noch einmal direkt vor der
 // Ausführung. Alle Datenbankzugriffe laufen über den Supabase-Client des
 // angemeldeten Nutzers, d. h. RLS verhindert Zugriffe auf fremde Daten.
-// Tools haben keinen Zugriff auf Shell, Dateisystem, URLs oder externe Dienste.
+// Tools haben keinen Zugriff auf Shell, Dateisystem oder beliebige URLs.
+// Externe Dienste nur über feste, eingebaute Adressen: GMX (IMAP), iCloud
+// (CalDAV) und der Wetterdienst Open-Meteo.
 // ---------------------------------------------------------------------------
 
 export type ToolOutcome =
@@ -64,26 +72,35 @@ function requireOwner(ctx: ToolContext) {
   if (!isIntegrationOwner(ctx.userEmail)) throw new DataError(NOT_OWNER, 403);
 }
 
-function todayInTimezone(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: getTimezone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
 const snippet = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
 
-const taskForModel = (t: { id: string; title: string; details: string | null; due_date: string | null; done: boolean }) => ({
+const taskForModel = (t: {
+  id: string;
+  title: string;
+  details: string | null;
+  due_date: string | null;
+  done: boolean;
+  priority?: string;
+}) => ({
   id: t.id,
   title: t.title,
   details: t.details ? snippet(t.details, 500) : null,
   due_date: t.due_date,
+  priority: t.priority ?? "normal",
   done: t.done,
 });
+
+/** Tag (JJJJ-MM-TT) eines Zeitpunkts in der Zeitzone des Nutzers. */
+function localDay(iso: string): string {
+  return todayInTimezone(new Date(iso));
+}
 
 const TOOLS: ToolDefinition[] = [
   defineTool({
     name: "list_tasks",
     kind: "read",
     description:
-      "Listet die Aufgaben des Nutzers auf (mit ID, Titel, Details, Fälligkeitsdatum, Status). Nutze dies, wenn der Nutzer nach seinen Aufgaben fragt oder bevor du eine Aufgabe änderst oder löschst.",
+      "Listet die Aufgaben des Nutzers auf (mit ID, Titel, Details, Fälligkeitsdatum, Priorität, Status). Nutze dies, wenn der Nutzer nach seinen Aufgaben fragt oder bevor du eine Aufgabe änderst oder löschst.",
     schema: z.object({
       status: z.enum(["open", "done", "all"]).default("open").describe("open = offen, done = erledigt, all = alle"),
       limit: z.number().int().min(1).max(50).default(30),
@@ -136,7 +153,7 @@ const TOOLS: ToolDefinition[] = [
     name: "create_task",
     kind: "write",
     description:
-      "Schlägt vor, eine neue Aufgabe anzulegen (wird erst nach Bestätigung durch den Nutzer ausgeführt). due_date optional im Format JJJJ-MM-TT.",
+      "Schlägt vor, eine neue Aufgabe anzulegen (wird erst nach Bestätigung durch den Nutzer ausgeführt). due_date optional im Format JJJJ-MM-TT, priority optional (low/normal/high).",
     schema: taskCreateSchema,
     async prepare() {
       return { ok: true, preview: {} };
@@ -155,7 +172,7 @@ const TOOLS: ToolDefinition[] = [
     async prepare(sb, input) {
       const task = await getTask(sb, input.id);
       if (!task) return { ok: false, error: "Aufgabe nicht gefunden." };
-      return { ok: true, preview: { target: { title: task.title, due_date: task.due_date, done: task.done } } };
+      return { ok: true, preview: { target: { title: task.title, due_date: task.due_date, priority: task.priority, done: task.done } } };
     },
     async execute(sb, input) {
       const { id, ...patch } = input;
@@ -242,6 +259,164 @@ const TOOLS: ToolDefinition[] = [
     async execute(sb, input) {
       const memory = await createMemory(sb, input.content);
       return { ok: true, summary: "Erinnerung gespeichert", data: { memory: { id: memory.id, content: memory.content } } };
+    },
+  }),
+  // ---------------- Wetter (Open-Meteo, ohne Schlüssel) ----------------
+  defineTool({
+    name: "get_weather",
+    kind: "read",
+    description:
+      "Liefert aktuelles Wetter und eine Vorhersage (bis 7 Tage). Ohne city wird der in den Einstellungen gespeicherte Ort verwendet.",
+    schema: z.object({
+      city: z.string().trim().max(100).optional().describe("Ort, z. B. 'Hamburg'; leer = gespeicherter Ort"),
+      days: z.number().int().min(1).max(7).default(3),
+    }),
+    async execute(sb, input) {
+      let label: string | null;
+      let lat: number;
+      let lon: number;
+      if (input.city) {
+        const place = await geocodeCity(input.city);
+        if (!place) return { ok: false, error: `Ort „${input.city}“ nicht gefunden.` };
+        ({ label, latitude: lat, longitude: lon } = place);
+      } else {
+        const settings = await getSettings(sb);
+        if (settings.latitude === null || settings.longitude === null) {
+          return { ok: false, error: "Kein Ort gespeichert. Der Nutzer kann ihn unter Einstellungen festlegen oder eine Stadt nennen." };
+        }
+        label = settings.city;
+        lat = settings.latitude;
+        lon = settings.longitude;
+      }
+      const forecast = await getForecast(lat, lon, input.days);
+      return {
+        ok: true,
+        summary: `Wetter für ${label ?? "den Ort"} abgerufen`,
+        data: {
+          ort: label,
+          quelle: "Open-Meteo",
+          jetzt: {
+            temperatur_c: forecast.current.temperature,
+            gefuehlt_c: forecast.current.apparentTemperature,
+            wetter: forecast.current.text,
+            luftfeuchte_prozent: forecast.current.humidity,
+            wind_kmh: forecast.current.windSpeed,
+          },
+          vorhersage: forecast.daily.map((d) => ({
+            datum: d.date,
+            wetter: d.text,
+            max_c: d.max,
+            min_c: d.min,
+            regenwahrscheinlichkeit_prozent: d.precipitationProbability,
+          })),
+        },
+      };
+    },
+  }),
+  // ---------------- Gewohnheiten ----------------
+  defineTool({
+    name: "list_habits",
+    kind: "read",
+    description:
+      "Listet die Gewohnheiten des Nutzers mit ID, heute erledigt ja/nein, aktueller Serie (Tage in Folge) und Fortschritt dieser Woche gegenüber dem Wochenziel.",
+    schema: z.object({}),
+    async execute(sb) {
+      const today = todayInTimezone();
+      const habits = await listHabits(sb, addDays(today, -190));
+      return {
+        ok: true,
+        summary: `${habits.length} Gewohnheit(en) gelesen`,
+        data: {
+          heute: today,
+          gewohnheiten: habits.map((h) => ({
+            id: h.id,
+            titel: h.title,
+            heute_erledigt: h.days.includes(today),
+            serie_tage: currentStreak(h.days, today),
+            diese_woche: countThisWeek(h.days, today),
+            wochenziel: h.target_per_week,
+          })),
+        },
+      };
+    },
+  }),
+  defineTool({
+    name: "create_habit",
+    kind: "write",
+    description:
+      "Schlägt vor, eine neue Gewohnheit anzulegen (z. B. 'Lesen', Emoji optional, Wochenziel 1–7 Tage). Wird erst nach Bestätigung ausgeführt.",
+    schema: habitCreateSchema,
+    async prepare() {
+      return { ok: true, preview: {} };
+    },
+    async execute(sb, input) {
+      const habit = await createHabit(sb, input);
+      return { ok: true, summary: `Gewohnheit „${snippet(habit.title, 60)}“ angelegt`, data: { habit: { id: habit.id, title: habit.title } } };
+    },
+  }),
+  defineTool({
+    name: "log_habit",
+    kind: "write",
+    description:
+      "Schlägt vor, eine Gewohnheit für einen Tag abzuhaken (done: true) oder den Haken zu entfernen (done: false). day im Format JJJJ-MM-TT, Standard heute. ID über list_habits. Wird erst nach Bestätigung ausgeführt.",
+    schema: z.object({
+      id: uuid,
+      day: isoDate.optional().describe("Tag JJJJ-MM-TT, Standard heute"),
+      done: z.boolean().default(true),
+    }),
+    async prepare(sb, input) {
+      const habit = await getHabit(sb, input.id);
+      if (!habit) return { ok: false, error: "Gewohnheit nicht gefunden." };
+      const day = input.day ?? todayInTimezone();
+      if (day > todayInTimezone()) return { ok: false, error: "Zukünftige Tage können nicht abgehakt werden." };
+      return { ok: true, preview: { target: { title: habit.title }, day } };
+    },
+    async execute(sb, input) {
+      const habit = await getHabit(sb, input.id);
+      if (!habit) return { ok: false, error: "Gewohnheit nicht gefunden." };
+      const day = input.day ?? todayInTimezone();
+      if (day > todayInTimezone()) return { ok: false, error: "Zukünftige Tage können nicht abgehakt werden." };
+      await setHabitDay(sb, habit.id, day, input.done);
+      return {
+        ok: true,
+        summary: input.done ? `„${snippet(habit.title, 60)}“ für ${day} abgehakt` : `Haken bei „${snippet(habit.title, 60)}“ für ${day} entfernt`,
+        data: { habit: habit.title, day, done: input.done },
+      };
+    },
+  }),
+  // ---------------- Statistik ----------------
+  defineTool({
+    name: "get_activity_stats",
+    kind: "read",
+    description:
+      "Echte Aktivitätsstatistik der letzten 7 Tage: erledigte Aufgaben pro Tag, Fokus-Minuten (Fokus-Timer) pro Tag und offene/überfällige Aufgaben. Für Fragen wie 'Wie produktiv war ich diese Woche?'.",
+    schema: z.object({}),
+    async execute(sb) {
+      const today = todayInTimezone();
+      const since = new Date(Date.now() - 8 * 86400_000);
+      const [completed, focus, open] = await Promise.all([
+        listCompletedSince(sb, since),
+        listFocusSessions(sb, since),
+        listTasks(sb, "open", 500),
+      ]);
+      const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+      const perDay = days.map((day) => ({
+        datum: day,
+        erledigte_aufgaben: completed.filter((c) => localDay(c) === day).length,
+        fokus_minuten: focus.filter((f) => localDay(f.ended_at) === day).reduce((sum, f) => sum + f.minutes, 0),
+      }));
+      return {
+        ok: true,
+        summary: "Aktivitätsstatistik gelesen",
+        data: {
+          zeitraum: `${days[0]} bis ${today}`,
+          pro_tag: perDay,
+          summe_erledigt: perDay.reduce((s, d) => s + d.erledigte_aufgaben, 0),
+          summe_fokus_minuten: perDay.reduce((s, d) => s + d.fokus_minuten, 0),
+          offene_aufgaben: open.length,
+          ueberfaellige_aufgaben: open.filter((t) => t.due_date && t.due_date < today).length,
+        },
+      };
     },
   }),
   // ---------------- GMX-Postfach (nur lesen) ----------------
@@ -421,7 +596,12 @@ async function guard<T>(fn: () => Promise<T>, fallback: (message: string) => T):
   try {
     return await fn();
   } catch (error) {
-    if (error instanceof DataError || error instanceof MailError || error instanceof CalendarError) {
+    if (
+      error instanceof DataError ||
+      error instanceof MailError ||
+      error instanceof CalendarError ||
+      error instanceof WeatherError
+    ) {
       return fallback(error.message);
     }
     console.error("Tool-Fehler:", error instanceof Error ? error.name : "unbekannt");

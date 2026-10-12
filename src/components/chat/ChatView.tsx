@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ClientAction, DisplayItem, DisplaySegment } from "@/lib/agent/events";
 import { parseNdjson } from "@/lib/agent/events";
 import { ApiError, api, errorMessage, goToLogin } from "@/lib/client/api";
 import { useChatList } from "../AppShell";
-import { LogoMark } from "../icons";
+import { CheckIcon, CopyIcon, DownloadIcon, EditIcon, LogoMark, SpeakerIcon, StopIcon } from "../icons";
 import { CoreOrb } from "../hud/CoreOrb";
-import { Button, ErrorBanner, Spinner } from "../ui";
+import { Button, ErrorBanner, Spinner, inputClass } from "../ui";
+import { speak, voicePrefsStore } from "@/lib/voice/speech";
+import { useSpeaker, useSpeechOutputSupported } from "../voice/hooks";
 import { ActionCard } from "./ActionCard";
 import { Composer } from "./Composer";
 import { Markdown } from "./Markdown";
@@ -21,11 +23,49 @@ type ConversationResponse = {
 };
 
 const SUGGESTIONS = [
-  "Was steht bei meinen Aufgaben an?",
-  "Lege eine Aufgabe an: Mathe-Hausaufgaben bis Freitag",
+  "Gib mir ein kurzes Tagesbriefing",
+  "Lege eine Aufgabe an: Mathe-Hausaufgaben bis Freitag, hohe Priorität",
+  "Wie wird das Wetter morgen?",
+  "Wie produktiv war ich diese Woche?",
+  "Lege die Gewohnheit „Lesen“ an",
   "Merke dir: Ich mag kurze Antworten mit Beispielen.",
-  "Erstelle eine Notiz mit Ideen für mein Referat",
 ];
+
+function assistantText(segments: DisplaySegment[]): string {
+  return segments
+    .filter((s): s is { type: "text"; text: string } => s.type === "text")
+    .map((s) => s.text)
+    .join("\n\n")
+    .trim();
+}
+
+function toMarkdownExport(title: string, items: DisplayItem[]): string {
+  const lines = [`# ${title}`, "", `_Exportiert aus Jarvis am ${new Date().toLocaleString("de-DE")}_`, ""];
+  for (const item of items) {
+    if (item.kind === "user") {
+      lines.push(`## Du (${new Date(item.createdAt).toLocaleString("de-DE")})`, "", item.text, "");
+    } else {
+      lines.push("## Jarvis", "");
+      for (const segment of item.segments) {
+        if (segment.type === "text") lines.push(segment.text, "");
+        else lines.push(`> Aktion: ${segment.action.label} – ${segment.action.summary ?? segment.action.error ?? segment.action.status}`, "");
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 async function fetchConversation(id: string): Promise<ConversationResponse | Error> {
   try {
@@ -61,7 +101,17 @@ export function ChatView({
   const [needsContinue, setNeedsContinue] = useState(false);
   const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
   const [input, setInput] = useState(initialPrompt);
+  const [title, setTitle] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const liveTextRef = useRef("");
+  const speaker = useSpeaker();
+  const stopSpeaker = speaker.stop;
+  const canSpeak = useSpeechOutputSupported();
+  const voicePrefs = useSyncExternalStore(voicePrefsStore.subscribe, voicePrefsStore.getSnapshot, voicePrefsStore.getServerSnapshot);
+  const autoSpeakRef = useRef(voicePrefs.autoSpeak);
+  useEffect(() => {
+    autoSpeakRef.current = voicePrefs.autoSpeak;
+  }, [voicePrefs.autoSpeak]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
@@ -71,6 +121,7 @@ export function ChatView({
       else setError(result.message);
     } else {
       setItems(result.items);
+      setTitle(result.conversation.title);
       setNeedsContinue(result.needsContinue);
       setNotFound(false);
     }
@@ -109,6 +160,8 @@ export function ChatView({
       setNeedsContinue(false);
       setStreaming(true);
       setLive([]);
+      liveTextRef.current = "";
+      stopSpeaker();
       stickToBottom.current = true;
       const controller = new AbortController();
       abortRef.current = controller;
@@ -156,6 +209,7 @@ export function ChatView({
                 }
                 break;
               case "text":
+                liveTextRef.current += event.delta;
                 setLive((segments) => {
                   const list = segments ?? [];
                   const last = list[list.length - 1];
@@ -166,6 +220,7 @@ export function ChatView({
                 });
                 break;
               case "segment_end":
+                liveTextRef.current += "\n\n";
                 setLive((segments) => {
                   const list = segments ?? [];
                   const last = list[list.length - 1];
@@ -208,19 +263,40 @@ export function ChatView({
         setPendingUserText(null);
         setStreaming(false);
         void refreshChatList();
+        // Antwort automatisch vorlesen (Einstellung pro Gerät)
+        if (!failed && !controller.signal.aborted && autoSpeakRef.current && liveTextRef.current.trim()) {
+          speak(liveTextRef.current);
+        }
         // Neuer Chat: auf die dauerhafte Adresse wechseln (überlebt ein Neuladen).
         if (createdConversation && id) router.replace(`/chat/${id}`);
       }
     },
-    [applyLoaded, refreshChatList, router],
+    [applyLoaded, refreshChatList, router, stopSpeaker],
   );
 
-  function send() {
-    const text = input.trim();
+  function send(override?: string) {
+    const text = (override ?? input).trim();
     if (!text || streaming) return;
     setInput("");
     setPendingUserText(text);
     void stream({ message: text });
+  }
+
+  async function rename(next: string) {
+    const id = conversationIdRef.current;
+    if (!id) return false;
+    try {
+      const { conversation } = await api<{ conversation: { title: string } }>(`/api/conversations/${id}`, {
+        method: "PATCH",
+        json: { title: next },
+      });
+      setTitle(conversation.title);
+      void refreshChatList();
+      return true;
+    } catch (e) {
+      setError(errorMessage(e));
+      return false;
+    }
   }
 
   async function decide(action: ClientAction, decision: "approve" | "reject") {
@@ -266,6 +342,14 @@ export function ChatView({
 
   return (
     <div className="flex h-full flex-col">
+      {conversationId && title && (
+        <ChatHeader
+          title={title}
+          onRename={rename}
+          onExport={() => downloadText(`jarvis-chat-${new Date().toISOString().slice(0, 10)}.md`, toMarkdownExport(title, items))}
+          exportDisabled={items.length === 0}
+        />
+      )}
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto px-4 py-6"
@@ -285,7 +369,7 @@ export function ChatView({
                 Frag mich etwas oder lass mich deine Aufgaben, Notizen und Erinnerungen verwalten. Änderungen führe ich erst
                 aus, wenn du sie bestätigst.
               </p>
-              <div className="mx-auto mt-6 grid max-w-xl gap-2 sm:grid-cols-2">
+              <div className="mx-auto mt-6 grid max-w-2xl gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
@@ -306,9 +390,11 @@ export function ChatView({
             ) : (
               <AssistantBlock
                 key={`a${item.id}`}
+                id={`a${item.id}`}
                 segments={item.segments}
                 busyActions={busyActions}
                 onDecide={streaming ? undefined : decide}
+                speaker={canSpeak ? speaker : null}
               />
             ),
           )}
@@ -341,7 +427,8 @@ export function ChatView({
         <Composer
           value={input}
           onChange={setInput}
-          onSubmit={send}
+          onSubmit={() => send()}
+          onVoiceSubmit={(text) => send(text)}
           onStop={() => abortRef.current?.abort()}
           streaming={streaming}
           disabled={loading || busyActions.size > 0}
@@ -362,16 +449,126 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+function ChatHeader({
+  title,
+  onRename,
+  onExport,
+  exportDisabled,
+}: {
+  title: string;
+  onRename: (title: string) => Promise<boolean>;
+  onExport: () => void;
+  exportDisabled: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const [saving, setSaving] = useState(false);
+
+  if (editing) {
+    return (
+      <form
+        className="flex items-center gap-2 border-b border-line bg-surface/60 px-4 py-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!draft.trim()) return;
+          setSaving(true);
+          if (await onRename(draft.trim())) setEditing(false);
+          setSaving(false);
+        }}
+      >
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={200} autoFocus className={`${inputClass} py-1.5`} aria-label="Chat-Titel" />
+        <Button type="submit" variant="primary" disabled={saving || !draft.trim()}>
+          Speichern
+        </Button>
+        <Button onClick={() => setEditing(false)}>Abbrechen</Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 border-b border-line bg-surface/40 px-4 py-2">
+      <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-text/90" title={title}>
+        {title}
+      </h1>
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(title);
+          setEditing(true);
+        }}
+        className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-text"
+        aria-label="Chat umbenennen"
+        title="Umbenennen"
+      >
+        <EditIcon width={16} height={16} />
+      </button>
+      <button
+        type="button"
+        onClick={onExport}
+        disabled={exportDisabled}
+        className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-text disabled:opacity-40"
+        aria-label="Chat als Markdown exportieren"
+        title="Als Markdown exportieren"
+      >
+        <DownloadIcon width={16} height={16} />
+      </button>
+    </div>
+  );
+}
+
+function MessageTools({ id, text, speaker }: { id: string; text: string; speaker: ReturnType<typeof useSpeaker> | null }) {
+  const [copied, setCopied] = useState(false);
+  if (!text) return null;
+  const speaking = speaker?.speakingId === id;
+  return (
+    <div className="flex gap-1 text-muted">
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard?.writeText(text).then(
+            () => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            },
+            () => {},
+          );
+        }}
+        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs hover:bg-surface-2 hover:text-text"
+        aria-label="Antwort kopieren"
+      >
+        {copied ? <CheckIcon width={14} height={14} className="text-success" /> : <CopyIcon width={14} height={14} />}
+        {copied ? "Kopiert" : "Kopieren"}
+      </button>
+      {speaker && (
+        <button
+          type="button"
+          onClick={() => speaker.toggle(id, text)}
+          className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-xs hover:bg-surface-2 hover:text-text ${speaking ? "text-accent" : ""}`}
+          aria-label={speaking ? "Vorlesen stoppen" : "Antwort vorlesen"}
+          aria-pressed={speaking}
+        >
+          {speaking ? <StopIcon width={14} height={14} /> : <SpeakerIcon width={14} height={14} />}
+          {speaking ? "Stopp" : "Vorlesen"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AssistantBlock({
+  id,
   segments,
   busyActions,
   onDecide,
   thinking,
+  speaker = null,
 }: {
+  id?: string;
   segments: DisplaySegment[];
   busyActions: Set<string>;
   onDecide?: (action: ClientAction, decision: "approve" | "reject") => void;
   thinking?: boolean;
+  speaker?: ReturnType<typeof useSpeaker> | null;
 }) {
   return (
     <div className="flex gap-3">
@@ -392,6 +589,7 @@ function AssistantBlock({
             />
           ),
         )}
+        {id && <MessageTools id={id} text={assistantText(segments)} speaker={speaker} />}
       </div>
     </div>
   );

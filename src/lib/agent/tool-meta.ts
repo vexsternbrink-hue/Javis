@@ -18,6 +18,11 @@ export const TOOL_META: Record<string, { label: string; kind: ToolKind }> = {
   read_email: { label: "E-Mail lesen", kind: "read" },
   list_events: { label: "Termine ansehen", kind: "read" },
   create_event: { label: "Termin anlegen", kind: "write" },
+  get_weather: { label: "Wetter abrufen", kind: "read" },
+  list_habits: { label: "Gewohnheiten ansehen", kind: "read" },
+  create_habit: { label: "Gewohnheit anlegen", kind: "write" },
+  log_habit: { label: "Gewohnheit abhaken", kind: "write" },
+  get_activity_stats: { label: "Statistik ansehen", kind: "read" },
 };
 
 export const FIELD_LABELS: Record<string, string> = {
@@ -35,6 +40,12 @@ export const FIELD_LABELS: Record<string, string> = {
   location: "Ort",
   notes: "Notiz",
   calendar: "Kalender",
+  priority: "Priorität",
+  city: "Ort",
+  days: "Tage",
+  emoji: "Symbol",
+  target_per_week: "Wochenziel",
+  day: "Tag",
 };
 
 export function toolLabel(name: string): string {

@@ -17,7 +17,9 @@ const STATUS: Record<ClientAction["status"], { text: string; className: string }
 function formatValue(key: string, value: unknown): string {
   if (value === null) return key === "due_date" ? "Datum entfernen" : "leeren";
   if (typeof value === "boolean") return value ? "Ja" : "Nein";
-  if (key === "due_date" && typeof value === "string") return formatDate(value);
+  if ((key === "due_date" || key === "day") && typeof value === "string") return formatDate(value);
+  if (key === "priority") return value === "high" ? "Hoch" : value === "low" ? "Niedrig" : "Normal";
+  if (key === "target_per_week") return `${String(value)} Tag(e) pro Woche`;
   if (key === "status") return value === "open" ? "offen" : value === "done" ? "erledigt" : "alle";
   if (typeof value === "string") return value || "(leer)";
   return JSON.stringify(value);
@@ -47,6 +49,10 @@ export function ActionCard({
   }
 
   const fields = Object.entries(action.input).filter(([key, value]) => key !== "id" && value !== undefined);
+  // Vom Server ergänzter Tag (z. B. "heute" beim Abhaken einer Gewohnheit)
+  if (typeof action.preview?.day === "string" && !("day" in action.input && action.input.day)) {
+    fields.unshift(["day", action.preview.day]);
+  }
   const target = action.preview && typeof action.preview.target === "object" ? (action.preview.target as Record<string, unknown>) : null;
 
   return (

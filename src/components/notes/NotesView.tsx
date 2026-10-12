@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import type { Note } from "@/lib/data/types";
 import { api, errorMessage } from "@/lib/client/api";
 import { formatDateTime } from "@/lib/client/dates";
-import { BackIcon, PlusIcon } from "../icons";
+import { BackIcon, EyeIcon, EditIcon, PinIcon, PlusIcon } from "../icons";
 import { Button, EmptyState, ErrorBanner, Spinner, inputClass } from "../ui";
+import { Markdown } from "../chat/Markdown";
 
 type Selection = { mode: "new" } | { mode: "edit"; id: string } | null;
 
-export function NotesView() {
+export function NotesView({ initialId = null, startNew = false }: { initialId?: string | null; startNew?: boolean }) {
   const [notes, setNotes] = useState<Note[] | null>(null);
-  const [selection, setSelection] = useState<Selection>(null);
+  const [selection, setSelection] = useState<Selection>(
+    startNew ? { mode: "new" } : initialId ? { mode: "edit", id: initialId } : null,
+  );
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -31,9 +34,9 @@ export function NotesView() {
   }, []);
 
   const term = search.trim().toLowerCase();
-  const visible = (notes ?? []).filter(
-    (n) => !term || n.title.toLowerCase().includes(term) || n.content.toLowerCase().includes(term),
-  );
+  const visible = (notes ?? [])
+    .filter((n) => !term || n.title.toLowerCase().includes(term) || n.content.toLowerCase().includes(term))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updated_at.localeCompare(a.updated_at));
   const selected = selection?.mode === "edit" ? notes?.find((n) => n.id === selection.id) ?? null : null;
 
   async function save(values: { title: string; content: string }) {
@@ -51,6 +54,16 @@ export function NotesView() {
     } catch (e) {
       setError(errorMessage(e));
       return false;
+    }
+  }
+
+  async function togglePin(note: Note) {
+    setError(null);
+    try {
+      const { note: updated } = await api<{ note: Note }>(`/api/notes/${note.id}`, { method: "PATCH", json: { pinned: !note.pinned } });
+      setNotes((list) => list?.map((n) => (n.id === note.id ? updated : n)) ?? null);
+    } catch (e) {
+      setError(errorMessage(e));
     }
   }
 
@@ -108,8 +121,11 @@ export function NotesView() {
                     selected?.id === note.id ? "bg-surface-2" : "hover:bg-surface-2"
                   }`}
                 >
-                  <p className="truncate font-medium">{note.title}</p>
-                  <p className="truncate text-sm text-muted">{note.content || "(leer)"}</p>
+                  <p className="flex items-center gap-1.5 truncate font-medium">
+                    {note.pinned && <PinIcon width={14} height={14} className="shrink-0 text-accent" aria-label="Angeheftet" />}
+                    <span className="truncate">{note.title}</span>
+                  </p>
+                  <p className="truncate text-sm text-muted">{note.content.replace(/[#*_`>~]+/g, "").trim() || "(leer)"}</p>
                   <p className="mt-0.5 text-xs text-muted/80">{formatDateTime(note.updated_at)}</p>
                 </button>
               </li>
@@ -129,6 +145,7 @@ export function NotesView() {
             onBack={() => setSelection(null)}
             onSave={save}
             onDelete={selected ? () => remove(selected) : undefined}
+            onTogglePin={selected ? () => togglePin(selected) : undefined}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted">
@@ -147,6 +164,7 @@ function NoteEditor({
   onBack,
   onSave,
   onDelete,
+  onTogglePin,
 }: {
   note: Note | null;
   error: string | null;
@@ -154,9 +172,11 @@ function NoteEditor({
   onBack: () => void;
   onSave: (values: { title: string; content: string }) => Promise<boolean>;
   onDelete?: () => void;
+  onTogglePin?: () => void;
 }) {
   const [title, setTitle] = useState(note?.title ?? "");
   const [content, setContent] = useState(note?.content ?? "");
+  const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const dirty = title !== (note?.title ?? "") || content !== (note?.content ?? "");
@@ -184,6 +204,16 @@ function NoteEditor({
           {dirty ? "Nicht gespeichert" : savedAt ? `Gespeichert um ${savedAt}` : note ? `Zuletzt geändert ${formatDateTime(note.updated_at)}` : "Neue Notiz"}
         </span>
         <div className="ml-auto flex gap-2">
+          <Button variant="ghost" onClick={() => setPreview((p) => !p)} aria-pressed={preview} title={preview ? "Bearbeiten" : "Markdown-Vorschau"}>
+            {preview ? <EditIcon width={16} height={16} /> : <EyeIcon width={16} height={16} />}
+            <span className="hidden sm:inline">{preview ? "Bearbeiten" : "Vorschau"}</span>
+          </Button>
+          {onTogglePin && note && (
+            <Button variant="ghost" onClick={onTogglePin} aria-pressed={note.pinned} title={note.pinned ? "Lösen" : "Anheften"}>
+              <PinIcon width={16} height={16} className={note.pinned ? "text-accent" : ""} />
+              <span className="hidden sm:inline">{note.pinned ? "Lösen" : "Anheften"}</span>
+            </Button>
+          )}
           {onDelete && (
             <Button variant="danger" onClick={onDelete}>
               Löschen
@@ -208,15 +238,23 @@ function NoteEditor({
           className="w-full bg-transparent text-xl font-semibold placeholder:text-muted/60 focus:outline-none"
           aria-label="Titel"
         />
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Schreib hier deine Notiz …"
-          maxLength={20000}
-          className="min-h-64 w-full flex-1 resize-none bg-transparent text-[15px] leading-relaxed placeholder:text-muted/60 focus:outline-none"
-          aria-label="Inhalt"
-        />
-        <p className="text-right text-xs text-muted">{content.length}/20000</p>
+        {preview ? (
+          <div className="min-h-64 flex-1 overflow-y-auto text-[15px]">
+            {content.trim() ? <Markdown text={content} /> : <p className="text-muted">(leer)</p>}
+          </div>
+        ) : (
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Schreib hier deine Notiz … (Markdown wird unterstützt: **fett**, - Listen, # Überschriften)"
+            maxLength={20000}
+            className="min-h-64 w-full flex-1 resize-none bg-transparent text-[15px] leading-relaxed placeholder:text-muted/60 focus:outline-none"
+            aria-label="Inhalt"
+          />
+        )}
+        <p className="text-right text-xs text-muted">
+          {content.trim() ? content.trim().split(/\s+/).length : 0} Wörter · {content.length}/20000
+        </p>
       </div>
     </form>
   );

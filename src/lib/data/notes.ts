@@ -4,12 +4,13 @@ import type { NoteCreate, NoteUpdate } from "../validation";
 import type { Note } from "./types";
 import { dbError } from "./errors";
 
-const COLUMNS = "id, title, content, created_at, updated_at";
+const COLUMNS = "id, title, content, pinned, created_at, updated_at";
 
 export async function listNotes(sb: ServerSupabase, limit = 500): Promise<Note[]> {
   const { data, error } = await sb
     .from("notes")
     .select(COLUMNS)
+    .order("pinned", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) dbError("Laden der Notizen", error);
@@ -62,6 +63,7 @@ export async function updateNote(sb: ServerSupabase, id: string, patch: NoteUpda
   const update: Record<string, unknown> = {};
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.content !== undefined) update.content = patch.content;
+  if (patch.pinned !== undefined) update.pinned = patch.pinned;
   const { data, error } = await sb.from("notes").update(update).eq("id", id).select(COLUMNS).maybeSingle();
   if (error) dbError("Ändern der Notiz", error);
   return (data as Note | null) ?? null;

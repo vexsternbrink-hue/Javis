@@ -30,10 +30,14 @@ export const isoDate = z
 
 export const uuid = z.uuid("Ungültige ID");
 
+export const PRIORITIES = ["low", "normal", "high"] as const;
+export const priority = z.enum(PRIORITIES, "Priorität muss low, normal oder high sein");
+
 export const taskCreateSchema = z.object({
   title: trimmed(LIMITS.taskTitle, "Titel"),
   details: z.string().trim().max(LIMITS.taskDetails, "Details sind zu lang").nullish(),
   due_date: isoDate.nullish(),
+  priority: priority.optional().describe("low = niedrig, normal, high = hoch (Standard normal)"),
 });
 
 export const taskUpdateFields = {
@@ -41,10 +45,11 @@ export const taskUpdateFields = {
   details: z.string().trim().max(LIMITS.taskDetails, "Details sind zu lang").nullable().optional(),
   due_date: isoDate.nullable().optional(),
   done: z.boolean().optional(),
+  priority: priority.optional(),
 };
 
 const hasTaskChange = (v: Record<string, unknown>) =>
-  ["title", "details", "due_date", "done"].some((k) => v[k] !== undefined);
+  ["title", "details", "due_date", "done", "priority"].some((k) => v[k] !== undefined);
 
 export const taskUpdateSchema = z
   .object(taskUpdateFields)
@@ -64,10 +69,13 @@ export const noteUpdateFields = {
   content: z.string().max(LIMITS.noteContent, "Notiz ist zu lang").optional(),
 };
 
-const hasNoteChange = (v: { title?: string; content?: string }) =>
-  v.title !== undefined || v.content !== undefined;
+const hasNoteChange = (v: { title?: string; content?: string; pinned?: boolean }) =>
+  v.title !== undefined || v.content !== undefined || v.pinned !== undefined;
 
-export const noteUpdateSchema = z.object(noteUpdateFields).refine(hasNoteChange, "Keine Änderung angegeben");
+/** REST-API: zusätzlich anheften/lösen (die KI ändert nur Titel und Inhalt). */
+export const noteUpdateSchema = z
+  .object({ ...noteUpdateFields, pinned: z.boolean().optional() })
+  .refine(hasNoteChange, "Keine Änderung angegeben");
 
 export const noteUpdateWithIdSchema = z
   .object({ id: uuid, ...noteUpdateFields })
@@ -125,3 +133,44 @@ export const eventCreateSchema = z
   });
 
 export type EventCreate = z.infer<typeof eventCreateSchema>;
+
+// ---------------------------------------------------------------------------
+// Einstellungen, Gewohnheiten, Fokus
+// ---------------------------------------------------------------------------
+
+export const settingsSchema = z.object({
+  display_name: z.string().trim().max(60, "Name ist zu lang (max. 60 Zeichen)").nullish(),
+  city: z.string().trim().max(120, "Ort ist zu lang").nullish(),
+});
+
+export const habitCreateSchema = z.object({
+  title: trimmed(100, "Name der Gewohnheit"),
+  emoji: z.string().trim().max(8, "Symbol ist zu lang").nullish(),
+  target_per_week: z.number().int().min(1).max(7).default(7).describe("Ziel: an wie vielen Tagen pro Woche (1–7)"),
+});
+
+export const habitUpdateSchema = z
+  .object({
+    title: trimmed(100, "Name der Gewohnheit").optional(),
+    emoji: z.string().trim().max(8, "Symbol ist zu lang").nullable().optional(),
+    target_per_week: z.number().int().min(1).max(7).optional(),
+    archived: z.boolean().optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), "Keine Änderung angegeben");
+
+export const habitLogSchema = z.object({
+  day: isoDate,
+  done: z.boolean(),
+});
+
+export const focusCreateSchema = z.object({
+  minutes: z.number().int().min(1, "Mindestens 1 Minute").max(180, "Höchstens 180 Minuten"),
+  label: z.string().trim().max(100, "Bezeichnung ist zu lang").nullish(),
+});
+
+export const searchQuerySchema = z.string().trim().min(1).max(100);
+
+export type SettingsInput = z.infer<typeof settingsSchema>;
+export type HabitCreate = z.infer<typeof habitCreateSchema>;
+export type HabitUpdate = z.infer<typeof habitUpdateSchema>;
+export type FocusCreate = z.infer<typeof focusCreateSchema>;
