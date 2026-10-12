@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import { getAllowedEmails, isProduction } from "@/lib/env";
 import { isEmailAllowed } from "@/lib/allowlist";
+import { magicLinkErrorMessage } from "@/lib/auth-messages";
 import { isSameOrigin, jsonError, jsonOk, parseJsonBody } from "@/lib/http";
 
 const schema = z.object({ email: z.email("Bitte gib eine gültige E-Mail-Adresse ein.").max(254) });
@@ -32,10 +33,8 @@ export async function POST(request: Request) {
   });
   if (error) {
     console.error("Magic-Link-Versand fehlgeschlagen:", error.status ?? "", error.code ?? "");
-    if (error.status === 429) {
-      return jsonError(429, "Zu viele Anmeldeversuche. Bitte warte ein paar Minuten.");
-    }
-    return jsonError(500, "Die E-Mail konnte nicht gesendet werden. Bitte später erneut versuchen.");
+    return jsonError(error.status === 429 ? 429 : 500, magicLinkErrorMessage(error.status, error.code));
   }
   return jsonOk({ sent: true });
 }
+

@@ -92,6 +92,8 @@ Im Supabase-Projekt: **Authentication → URL Configuration**
 
 Unter **Authentication → Sign In / Providers** muss **Email** aktiviert sein (Standard).
 
+**Wichtig zum E-Mail-Versand:** Der eingebaute Mailversand von Supabase verschickt E-Mails nur an Adressen, die zu deinem Supabase-Team gehören (also z. B. die Adresse, mit der du dein Supabase-Konto angelegt hast), und nur wenige pro Stunde. Melde dich bei Jarvis am einfachsten mit genau dieser Adresse an. Für andere Adressen brauchst du einen eigenen SMTP-Dienst (Authentication → Emails → SMTP Settings; es gibt Anbieter mit kostenlosem Kontingent).
+
 **Empfehlung nach deiner ersten Anmeldung:** Unter **Authentication → Sign In / Providers** die Option **„Allow new users to sign up“** ausschalten. Dann kann niemand mehr ein neues Konto anlegen. (Zusätzlich lässt Jarvis sowieso nur Adressen aus `ALLOWED_EMAILS` hinein.)
 
 **Optional – Link auf einem anderen Gerät öffnen:** Standardmäßig muss der Magic-Link im selben Browser geöffnet werden, in dem du ihn angefordert hast. Wenn du das ändern möchtest: **Authentication → Emails → Magic Link** und den Link in der Vorlage ersetzen durch
