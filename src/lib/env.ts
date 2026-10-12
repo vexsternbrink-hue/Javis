@@ -13,15 +13,36 @@ function intFromEnv(name: string, fallback: number, min: number, max: number): n
 
 export type Effort = "low" | "medium" | "high";
 
+export type AiProviderId = "anthropic" | "gemini";
+
+/**
+ * Welcher KI-Anbieter genutzt wird. AI_PROVIDER kann "gemini" (kostenloses
+ * Kontingent bei Google) oder "anthropic" sein. Ohne Angabe wird der Anbieter
+ * gewählt, für den ein Schlüssel eingetragen ist (Gemini zuerst).
+ */
+export function getAiProviderId(): AiProviderId {
+  const explicit = (process.env.AI_PROVIDER ?? "").trim().toLowerCase();
+  if (explicit === "gemini" || explicit === "anthropic") return explicit;
+  if (process.env.GEMINI_API_KEY?.trim()) return "gemini";
+  return "anthropic";
+}
+
 export function getAiConfig() {
   const effortRaw = (process.env.ANTHROPIC_EFFORT ?? "").trim();
   const effort: Effort | undefined =
     effortRaw === "low" || effortRaw === "medium" || effortRaw === "high" ? effortRaw : undefined;
   return {
-    apiKey: process.env.ANTHROPIC_API_KEY?.trim() || undefined,
-    model: process.env.ANTHROPIC_MODEL?.trim() || "claude-haiku-5-5",
-    effort,
+    provider: getAiProviderId(),
     maxOutputTokens: intFromEnv("AI_MAX_OUTPUT_TOKENS", 4000, 512, 32000),
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY?.trim() || undefined,
+      model: process.env.ANTHROPIC_MODEL?.trim() || "claude-haiku-5-5",
+      effort,
+    },
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY?.trim() || undefined,
+      model: process.env.GEMINI_MODEL?.trim() || "gemini-flash-latest",
+    },
   };
 }
 
