@@ -31,7 +31,7 @@ export function describeGeminiKey(key: string | undefined): string {
   if (looksLikePlaceholder(key)) return "PLATZHALTER – bitte echten Schlüssel aus Google AI Studio eintragen";
   if (key !== key.trim()) return "enthält Leerzeichen am Anfang/Ende";
   if (key.startsWith("AIza") && key.length >= 35) return "sieht gültig aus";
-  return "ungewöhnliches Format – bitte prüfen";
+  return "anderes Format als üblich (siehe geminiVerbindung)";
 }
 
 export function checkSupabaseUrl(raw: string | undefined): { ok: boolean; hinweis?: string } {
@@ -51,6 +51,27 @@ export function checkSupabaseUrl(raw: string | undefined): { ok: boolean; hinwei
     return { ok: false, hinweis: "Hinter .supabase.co darf nichts mehr stehen (auch kein Schrägstrich-Pfad)." };
   }
   return { ok: true };
+}
+
+/** Fragt bei Google nur die Modellliste ab – prüft den Schlüssel, ohne KI-Kontingent zu verbrauchen. */
+async function checkGemini(apiKey: string | undefined): Promise<string> {
+  if (!apiKey) return "nicht getestet (Schlüssel fehlt)";
+  if (looksLikePlaceholder(apiKey)) return "nicht getestet (Platzhalter)";
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", {
+      headers: { "x-goog-api-key": apiKey.trim() },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.status === 200) return "OK – Google akzeptiert den Schlüssel";
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      return `ABGELEHNT (${res.status}) – Schlüssel ungültig oder falsch kopiert`;
+    }
+    if (res.status === 429) return "Schlüssel ok, aber Limit gerade erreicht";
+    return `Fehler bei Google (Status ${res.status})`;
+  } catch {
+    return "keine Verbindung zu Google";
+  }
 }
 
 export async function runHealthCheck() {
@@ -81,6 +102,7 @@ export async function runHealthCheck() {
   }
 
   const ai = getAiConfig();
+  const geminiVerbindung = await checkGemini(ai.gemini.apiKey);
   return {
     hinweis: "Diese Seite zeigt keine geheimen Werte.",
     supabase: {
@@ -96,6 +118,7 @@ export async function runHealthCheck() {
       anbieter: ai.provider,
       geminiSchluessel: describeGeminiKey(process.env.GEMINI_API_KEY),
       geminiModell: ai.gemini.model,
+      geminiVerbindung,
       anthropicSchluesselGesetzt: Boolean(ai.anthropic.apiKey),
     },
     zugriff: {
